@@ -6,3 +6,20 @@
 main,.sidebar,.device-sidebar{min-height:0}#rooms{min-height:0;overflow-y:auto;scrollbar-width:none}.brand,.home-title,.section-label,.sidebar-footer{flex-shrink:0}
 @media(max-height:800px) and (min-width:601px){.sidebar{padding-top:25px}.home-title{margin-top:29px;margin-bottom:24px}.room-item{height:39px}.sidebar-footer{padding-top:16px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.layout-bar{position:absolute;bottom:24px;left:27px;right:27px;display:flex;align-items:center;gap:7px;padding:13px 14px;background:#fafbf6e8;border:1px solid #e1e7d5;border-radius:11px}
+.layout-bar[hidden],.layout-actions[hidden]{display:none}
+.layout-tip{display:flex;align-items:center;gap:9px;flex:1;min-width:0;font-size:11px;color:#7d8a6e}
+.layout-tip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layout-tip svg{width:15px;height:15px}
+.layout-actions{display:flex;align-items:center;gap:6px}
+.layout-actions strong{font-size:11px;color:var(--green);white-space:nowrap;margin-right:3px}
+.layout-bar button{display:grid;place-items:center;width:32px;height:31px;border:1px solid #e0e5d5;background:#ffffffe8;border-radius:7px;color:#5c6b52}
+.layout-bar button svg{width:14px;height:14px}
+.layout-bar button:hover:not(:disabled){background:#e9efdf}
+.layout-bar button:disabled{opacity:.32;cursor:not-allowed}
+.layout-bar .layout-reset{width:auto;display:flex;gap:7px;padding:0 12px;font-size:11px;white-space:nowrap;color:#5c6b52}
+body.layout .scene-strip{display:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.night .layout-bar{background:#eff2e8f2}
+@media(max-width:1200px){.layout-bar{left:19px;right:19px;padding:11px}}
+@media(max-width:600px){.layout-bar{bottom:20px;left:14px;right:14px;padding:10px;gap:6px}.layout-tip span{display:none}.layout-actions strong{display:none}.layout-bar .layout-reset{padding:0 9px}}
