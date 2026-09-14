@@ -21,6 +21,18 @@ npm run preview
 
 `dist/` 可部署到普通静态服务器，不依赖后端。
 
+## 部署
+
+线上地址：<https://pircate.github.io/home-atlas/>
+
+```bash
+npm run deploy
+```
+
+脚本会跑测试、以 `--base=/home-atlas/` 构建，再把 `dist/` 推到 `gh-pages` 分支。
+
+项目页位于子路径下，直接 `npm run build` 的默认 `base` 会让资源 404，因此须用 `npm run build:pages` 或 `npm run deploy`。
+
 ## 操作
 
 - 拖动旋转、滚轮缩放、右键平移；触屏单指旋转、双指缩放和平移。
