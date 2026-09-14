@@ -103,7 +103,8 @@ export function createHome(container,initialDevices,onSelect){
  const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=128;const shadowContext=shadowCanvas.getContext('2d');const shadowGradient=shadowContext.createRadialGradient(64,64,20,64,64,64);shadowGradient.addColorStop(0,'rgba(48,55,39,.2)');shadowGradient.addColorStop(.6,'rgba(48,55,39,.11)');shadowGradient.addColorStop(1,'rgba(48,55,39,0)');shadowContext.fillStyle=shadowGradient;shadowContext.fillRect(0,0,128,128);
  const ground=new T.Mesh(new T.PlaneGeometry(16,16),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));ground.rotation.x=-Math.PI/2;ground.position.set(4.5,-.36,4.8);scene.add(ground);
  const ring=new T.Mesh(new T.RingGeometry(.31,.335,60),new T.MeshBasicMaterial({color:'#b9944f',transparent:true,opacity:.95,side:T.DoubleSide,depthTest:false}));ring.rotation.x=-Math.PI/2;ring.visible=false;ring.renderOrder=10;scene.add(ring);
- let night=false,wallMode='auto',selected=null,tween=null,down=null,lastTime=0,wallCounter=0;
+ let night=false,wallMode='auto',selected=null,tween=null,down=null,lastTime=0,wallCounter=0,view='all';
+ const overviewPosition=()=>new T.Vector3(4.5,.1,4.9).add(new T.Vector3(7.5,13.6,13.1).multiplyScalar(Math.max(1,1.15/camera.aspect)));
  const pickRay=new T.Raycaster(),pointer=new T.Vector2();
  function pick(e){const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);pickRay.setFromCamera(pointer,camera);return pickRay.intersectObjects(clickable,false)[0]?.object.userData.device;}
  renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};tween=null;});renderer.domElement.addEventListener('pointerup',e=>{if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<6){const id=pick(e);if(id)onSelect(id);}down=null;});renderer.domElement.addEventListener('pointercancel',()=>{down=null;});renderer.domElement.addEventListener('pointermove',e=>{renderer.domElement.style.cursor=down?'grabbing':pick(e)?'pointer':'grab';});
@@ -111,9 +112,9 @@ export function createHome(container,initialDevices,onSelect){
    if(v.light){v.light.userData.intensity=d.on?40*d.brightness/100:0;v.light.color.set('#ffd099').lerp(new T.Color('#deebff'),(d.colorTemperature-2700)/3800);}
    if(v.screen){v.screen.material.color.set(d.on?'#547f76':'#17221f');v.screen.material.emissive.set(d.on?'#548f7c':'#000000');v.screen.material.emissiveIntensity=d.on?.7:0;}
   }}
- function focus(id){const r=rooms.find(r=>r.id===id)||rooms[0];tween={target:new T.Vector3(r.x,.1,r.z),position:id==='all'?new T.Vector3(12,13.7,18):new T.Vector3(r.x+3.3,7.5,r.z+5.3)};}
+ function focus(id){view=id;const r=rooms.find(r=>r.id===id)||rooms[0];tween={target:new T.Vector3(r.x,.1,r.z),position:id==='all'?overviewPosition():new T.Vector3(r.x+3.3,7.5,r.z+5.3)};}
  function select(id){selected=id;const d=devices.find(d=>d.id===id);ring.visible=!!d;if(d)ring.position.set(d.x,.06,d.z);}
- const observer=new ResizeObserver(()=>{const {width,height}=container.getBoundingClientRect();if(width&&height){camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);}});observer.observe(container);update(devices);
+ const observer=new ResizeObserver(()=>{const {width,height}=container.getBoundingClientRect();if(width&&height){camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);if(view==='all'){camera.position.copy(overviewPosition());controls.target.set(4.5,.1,4.9);tween=null;}}});observer.observe(container);update(devices);
  const wallRay=new T.Ray(),direction=new T.Vector3(),point=new T.Vector3(),targets=[...rooms.filter(r=>r.id!=='all').flatMap(r=>[-.55,.55].flatMap(x=>[-.55,.55].map(z=>new T.Vector3(r.x+x,.4,r.z+z)))),...devices.map(d=>new T.Vector3(d.x,.5,d.z))];
  renderer.setAnimationLoop(time=>{const dt=Math.min((time-lastTime)/1000,.05)||.016;lastTime=time;const ease=1-Math.exp(-dt*9);
   if(tween){camera.position.lerp(tween.position,ease);controls.target.lerp(tween.target,ease);if(camera.position.distanceTo(tween.position)<.02)tween=null;}controls.update();
