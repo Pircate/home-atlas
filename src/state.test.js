@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDevices,applyScene,power,restore,slabs,furnitureDefaults,extentOf,clampToLayout,resolveMove,restoreLayout} from './state.js';
+import {createDevices,applyScene,power,restore,slabs,furnitureDefaults,extentOf,clampToLayout,resolveMove,restoreLayout,LAYOUT_VERSION} from './state.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`期望 ${a} 接近 ${b}`);
 test('每台设备标识唯一，客厅三盏灯可以独立控制',()=>{const devices=createDevices();assert.equal(new Set(devices.map(d=>d.id)).size,24);const lamps=devices.filter(d=>d.room==='living'&&d.type==='light');assert.equal(lamps.length,3);lamps[0].on=false;assert(lamps[1].on);});
 test('离家关闭非必要设备，保留冰箱与热水器原状态',()=>{const devices=createDevices();const next=applyScene(devices,'away');assert(next.filter(d=>!['fridge','heater'].includes(d.type)).every(d=>!d.on&&!d.running));assert(next.find(d=>d.type==='fridge').on);assert(devices[0].on);});
@@ -11,7 +11,8 @@ test('模拟灯光功率随亮度变化',()=>{assert.equal(power([{on:true,type:
 test('家具标识唯一，且与设备标识不冲突',()=>{const furniture=furnitureDefaults(),ids=furniture.map(f=>f.id);assert.equal(new Set(ids).size,furniture.length);const deviceIds=new Set(createDevices().map(d=>d.id));assert(ids.every(id=>!deviceIds.has(id)));});
 test('旋转后的包围盒宽深互换',()=>{const e=extentOf({w:1.6,d:2.03,rot:90});close(e.w,2.03);close(e.d,1.6);const f=extentOf({w:1.6,d:2.03,rot:0});close(f.w,1.6);close(f.d,2.03);});
 test('地面并集在门洞处连通，家具可以跨房间搬动',()=>{for(const [x,z] of [[5.67,4.1],[7.4,8.43],[4.75,4.66],[2.55,4.64]])assert(clampToLayout(x,z,{w:.4,d:.4}),`门洞 ${x},${z} 应连通`);});
-test('房间之间的墙体不可跨越',()=>{assert.equal(clampToLayout(3.24,6.5,{w:1,d:2}),null);assert.equal(clampToLayout(1.98,3.9,{w:.6,d:.6}),null);});
+test('房间之间的墙体不可跨越，但同一道墙上的门洞可以穿过',()=>{assert.equal(clampToLayout(3.24,6.5,{w:1,d:2}),null,'卧室 B/C 之间');assert.equal(clampToLayout(1.985,3,{w:.6,d:.6}),null,'储物间与卧室 A 之间');
+ assert(clampToLayout(1.98,3.9,{w:.5,d:.5}),'储物间门洞（同一面墙上 z 3.7~4.43 的开口）应当能过去');});
 test('目标越界时贴墙走到最远处，而不是原地不动',()=>{const foot={w:.5,d:.5},from={x:1,z:6.5};
  const south=resolveMove(2,9,foot,from);
  assert(south.x>from.x&&south.z>from.z,'朝目标方向前进了一段');
@@ -22,7 +23,9 @@ test('目标越界时贴墙走到最远处，而不是原地不动',()=>{const f
  assert(clampToLayout(east.x,east.z,foot),'停下时位置仍然合法');});
 test('合法位置原样返回，且允许家具转出边界时留在原地',()=>{assert.deepEqual(clampToLayout(1.6,6.5,{w:.5,d:.5}),{x:1.6,z:6.5});assert.equal(clampToLayout(0,0,{w:2.7,d:2.8}),null);});
 test('家具存档为空或损坏时回落到完整默认摆位',()=>{const full=furnitureDefaults();for(const bad of [null,undefined,{},'x',{items:null},{version:1},{items:{'不存在的家具':{x:1,z:1}}}])assert.deepEqual(restoreLayout(bad),full);});
-test('家具存档只覆盖改动项并归一化角度',()=>{const next=restoreLayout({version:1,items:{sofa:{x:6,z:6.5,rot:-90},'卧室B大床组':{rot:450}}});assert.deepEqual(next.find(f=>f.id==='sofa'),{id:'sofa',name:'客厅沙发',room:'living',x:6,z:6.5,rot:270,rotatable:true});assert.equal(next.find(f=>f.id==='bed-b').x,1.62);assert.equal(next.find(f=>f.id==='bed-b').rot,0);});
+test('家具存档只覆盖改动项并归一化角度',()=>{const next=restoreLayout({version:LAYOUT_VERSION,items:{sofa:{x:6,z:6.5,rot:-90},'卧室B大床组':{rot:450}}});assert.deepEqual(next.find(f=>f.id==='sofa'),{id:'sofa',name:'客厅沙发',room:'living',x:6,z:6.5,rot:270,rotatable:true});assert.equal(next.find(f=>f.id==='bed-b').x,1.62);assert.equal(next.find(f=>f.id==='bed-b').rot,0);});
+test('旧版本的家具存档被整体丢弃，不按 id 套用到重排后的家具上',()=>{const next=restoreLayout({version:LAYOUT_VERSION-1,items:{'wardrobe-s':{x:.35,z:3.42},sofa:{x:6,z:6.5}}});
+ assert.deepEqual(next,furnitureDefaults(),'旧版本存档应回落到默认摆位');});
 test('非数值的坐标与角度被忽略',()=>{const next=restoreLayout({items:{sofa:{x:'远',z:NaN,rot:'转'}}});assert.equal(next.find(f=>f.id==='sofa').x,8.57);assert.equal(next.find(f=>f.id==='sofa').rot,0);});
 test('只有卫生间洁具因净宽不足不可旋转',()=>{const off=furnitureDefaults().filter(f=>!f.rotatable).map(f=>f.id);assert.deepEqual(off,['bath-fixtures']);});
 test('每组家具的默认摆位都落在可行走区域内',()=>{for(const f of furnitureDefaults())assert(clampToLayout(f.x,f.z,{w:.3,d:.3}),`${f.name} 的默认锚点越界`);});

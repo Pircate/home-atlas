@@ -2,7 +2,7 @@ import * as T from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {rooms,slabs,resolveMove,clampToLayout} from './state.js';
+import {rooms,slabs,resolveMove,clampToLayout,LAYOUT_VERSION} from './state.js';
 
 export function createHome(container,initialDevices,initialLayout,{onSelect,onFurniture,onLayout}={}){
  const layout=new Map(initialLayout.map(f=>[f.id,f]));
@@ -64,6 +64,7 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
   const group=new T.Group();group.position.set(spec.x,0,spec.z);group.rotation.y=spec.rot*Math.PI/180;home.add(group);build(group);
   const spin=group.rotation.y;group.rotation.y=0;group.updateMatrixWorld(true);
   const size=new T.Box3().setFromObject(group).getSize(new T.Vector3());group.rotation.y=spin;group.updateMatrixWorld(true);
+  group.userData.furnishing=id;   // 拾取时沿父链回溯到这里就知道点中了哪件家具
   furniture.push({...spec,group,footprint:{w:size.x,d:size.z,h:size.y}});
  }
  furnishing('bed-b',g=>{bed(g,0,0,1.6,'#7e8974');box(g,-1.15,.31,.77,.52,.54,.49,wood,.03);box(g,1.11,.31,.77,.45,.54,.49,wood,.03);});
@@ -72,8 +73,43 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
  furnishing('desk-a',g=>{box(g,0,.75,-.22,.63,.06,.54,wood,.025);for(const x of [-.23,.23])box(g,x,.37,-.22,.04,.75,.4,wood);box(g,.03,.4,.26,.38,.12,.38,sage,.035);box(g,.03,.6,.45,.38,.42,.07,sage,.03);});
  furnishing('wardrobe-b',g=>wardrobe(g,0,0,.61,1.1));
  furnishing('wardrobe-c',g=>wardrobe(g,0,0,1.95,.5));
- furnishing('wardrobe-s',g=>wardrobe(g,0,0,.55,1.88));
- furnishing('dresser-s',g=>{box(g,0,.55,-.02,.85,1.06,.46,wood,.025);for(let i=0;i<3;i++){box(g,0,.3+i*.28,.222,.74,.01,.012,brass);box(g,0,.34+i*.28,.24,.24,.014,.02,brass);}});
+ // 储物间按布局图改作电竞房：西南自行车柜、西北衣柜、东北电竞桌椅。
+ // 衣柜贴着西墙，柜门要朝东开，所以套一层绕 Y 转 90 度的子组——wardrobe() 的柜门固定开在 +z 面。
+ furnishing('wardrobe-s',g=>{const door=new T.Group();door.rotation.y=Math.PI/2;g.add(door);wardrobe(door,0,0,.92,.40);});
+ furnishing('bike-cabinet',g=>{
+  // 柜体用比墙面（#e5e0d4）更亮的白，背板压深一档，否则整柜会和墙糊成一片、读不出体积。
+  const shell=mat('#fbfaf5',.85),shelf=mat('#eceae1',.85),back=mat('#dedbcf',.9),tyre=mat('#2b2f30',.55),alloy=mat('#6f7674',.35,.5);
+  box(g,0,.02,0,.40,.04,1.20,shell,.01);box(g,0,1.99,0,.40,.03,1.20,shell,.01);      // 底板与顶板
+  box(g,-.19,1,0,.02,1.97,1.20,back);for(const z of [-.59,.59])box(g,0,1,z,.40,1.97,.02,shell);   // 背板与侧板
+  for(const y of [.62,1.18,1.74])box(g,0,y,0,.36,.02,1.16,shelf);                   // 层板
+  // 立挂的公路车：先在「轮轴为 y=0」的局部系里造平面剪影，再整体绕 X 立起来，
+  // 这样车头朝上、车身贴背板，和实拍里那辆车一致。
+  const bike=new T.Group();bike.position.set(0,.98,0);bike.rotation.x=-Math.PI/2;g.add(bike);
+  for(const z of [-.52,.52]){const wheel=new T.Mesh(new T.TorusGeometry(.335,.024,8,28),tyre);wheel.rotation.y=Math.PI/2;wheel.position.set(0,0,z);wheel.castShadow=true;bike.add(wheel);
+   const hub=cylinder(bike,0,0,z,.03,.03,.045,alloy);hub.rotation.z=Math.PI/2;}
+  const tube=(a,b,r)=>{const dir=new T.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]);const len=dir.length();
+   const m=new T.Mesh(new T.CylinderGeometry(r,r,len,8),mat('#f0efe9',.4,.25));m.position.set((a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2);
+   m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),dir.normalize());m.castShadow=true;bike.add(m);};
+  const bb=[0,-.06,-.05],seat=[0,.40,-.26],head=[0,.24,.40];
+  tube([0,0,-.52],bb,.021);tube(bb,[0,0,.52],.021);tube(bb,seat,.018);tube(seat,[0,0,-.52],.015);tube(head,[0,0,.52],.018);tube(seat,head,.017);
+  box(bike,0,.45,-.29,.05,.03,.26,tyre,.012);                                        // 坐垫
+  const bar=cylinder(bike,0,.30,.42,.016,.016,.34,tyre);bar.rotation.z=Math.PI/2;    // 车把（横出车身平面）
+ });
+ furnishing('desk-gaming',g=>{
+  const steel=mat('#4a5350',.4,.4),dark=mat('#2b2f30',.5,.2);
+  box(g,0,.72,0,1.36,.045,.75,mat('#3a4340',.5,.15),.02);                            // 桌面 1.36×0.75
+  for(const x of [-.62,.62])for(const z of [-.30,.30])box(g,x,.36,z,.05,.72,.05,steel);
+  box(g,0,.10,0,1.20,.03,.06,steel);
+  for(const x of [-.30,.30])for(const z of [-.28,.28])box(g,x,.02,z,.09,.05,.09,dark);
+  box(g,.10,.79,-.52,.11,.16,.09,dark);box(g,.10,.90,-.52,.05,.32,.05,dark);box(g,.10,1.12,-.52,.62,.36,.02,mat('#1c2422',.4));   // 显示器
+  box(g,.10,.752,-.20,.46,.02,.15,dark,.01);                                         // 键盘
+  const chair=new T.Group();chair.position.set(.16,0,.39);g.add(chair);              // 主位椅子，落在 x≈1.35
+  for(let i=0;i<5;i++){const a=i*1.2566;const arm=box(chair,Math.sin(a)*.16,.05,Math.cos(a)*.16,.05,.03,.30,dark,.012);arm.rotation.y=-a;}
+  cylinder(chair,0,.25,0,.035,.035,.34,mat('#5a6360',.4,.5));
+  box(chair,0,.45,0,.48,.09,.46,mat('#3a4340',.6),.04);                              // 坐垫
+  box(chair,0,.78,.24,.44,.66,.09,mat('#3a4340',.6),.045);                           // 靠背朝南，人面向北边的桌子
+  for(const x of [-.25,.25])box(chair,x,.60,0,.05,.16,.04,dark);
+ });
  // 客厅软装，沙发靠东墙，电视面向沙发。
  furnishing('sofa',g=>{
   box(g,-.01,.23,0,.86,.3,2.68,wood,.07);box(g,.33,.66,0,.2,.83,2.73,fabric,.08);
@@ -93,7 +129,7 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
   box(g,-.04,.945,.77,.46,.016,.47,mat('#89988f',.26,.65),.04);box(g,-.04,.952,.77,.35,.018,.35,dark,.03);cylinder(g,.17,1.07,.77,.022,.022,.24,brass);box(g,.13,1.19,.77,.1,.035,.04,brass,.01);});
  furnishing('bath-fixtures',g=>{box(g,-.47,.42,-.61,.5,.76,.38,white,.06);cylinder(g,-.47,.27,-.13,.18,.21,.5,white);ball(g,-.47,.52,-.09,.28,white,[.88,.3,1.32]);
   box(g,.46,.7,.5,.51,.12,.46,white,.08);box(g,.5,1.44,.79,.43,.68,.03,mat('#a5beb2',.12,.88),.04);});
- const visuals=new Map(),clickable=[],furnitureHits=[];let devices=initialDevices;
+ const visuals=new Map(),clickable=[];let devices=initialDevices;
  for(const d of devices){
   // 台灯、电视、电磁灶挂在对应家具上，由场景图的父子变换带动旋转，无需手工换算偏移。
   const host=d.attach?furniture.find(f=>f.id===d.attach):null;
@@ -126,12 +162,8 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
   const size=local.getSize(new T.Vector3()).max(new T.Vector3(.32,.24,.32)),center=local.getCenter(new T.Vector3());
   const hit=new T.Mesh(new T.BoxGeometry(size.x,size.y,size.z),new T.MeshBasicMaterial({visible:false}));hit.position.copy(center);hit.userData.device=d.id;group.add(hit);clickable.push(hit);visuals.set(d.id,{group,glow,light,screen,rotor});
  }
- // 家具命中盒单独存放：布置模式只拾取家具，浏览模式只拾取设备，两套互不干扰，
- // 否则电视、电磁灶这些挂在家具上的设备会被家具的包围盒挡住。
- for(const f of furniture){const local=new T.Box3().setFromObject(f.group).applyMatrix4(new T.Matrix4().copy(f.group.matrixWorld).invert());
-  const hit=new T.Mesh(new T.BoxGeometry(local.max.x-local.min.x,local.max.y-local.min.y,local.max.z-local.min.z),new T.MeshBasicMaterial({visible:false}));
-  hit.position.copy(local.getCenter(new T.Vector3()));hit.userData.furnishing=f.id;f.group.add(hit);furnitureHits.push(hit);
- }
+ // 家具不做包围盒命中体，直接拾取真实几何：包围盒会把家具之间的空隙也占满，
+ // 从默认机位看储物间时，桌椅组的空盒子会挡住后面的衣柜，点衣柜反而选中桌子。
  // 多盏聚光灯的 ShadowMaterial 会把光锥外区域也计为阴影；底座仅使用柔和接触影。
  const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=128;const shadowContext=shadowCanvas.getContext('2d');const shadowGradient=shadowContext.createRadialGradient(64,64,20,64,64,64);shadowGradient.addColorStop(0,'rgba(48,55,39,.2)');shadowGradient.addColorStop(.6,'rgba(48,55,39,.11)');shadowGradient.addColorStop(1,'rgba(48,55,39,0)');shadowContext.fillStyle=shadowGradient;shadowContext.fillRect(0,0,128,128);
  const ground=new T.Mesh(new T.PlaneGeometry(16,16),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));ground.rotation.x=-Math.PI/2;ground.position.set(4.5,-.36,4.8);scene.add(ground);
@@ -147,7 +179,15 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
  const idleCursor=()=>layoutMode?'default':'grab';
  function aim(e){const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);pickRay.setFromCamera(pointer,camera);}
  function pick(e){aim(e);return pickRay.intersectObjects(clickable,false)[0]?.object.userData.device;}
- function hitFurniture(e){aim(e);return pickRay.intersectObjects(furnitureHits,false)[0]?.object.userData.furnishing;}
+ // 沿父链回溯判定点中了谁。挂在柜子上的台灯、电视其祖先就是家具组，算作家具；
+ // 而设备自己的不可见命中盒带 userData.device，遇到就跳过这一条交点、继续找下一个。
+ function hitFurniture(e){aim(e);
+  for(const h of pickRay.intersectObjects(furniture.map(f=>f.group),true)){
+   let o=h.object;while(o&&!o.userData.furnishing&&!o.userData.device)o=o.parent;
+   if(o?.userData.furnishing)return o.userData.furnishing;
+  }
+  return null;
+ }
  // 贴地拖动只取交点的 x/z，各物体保持原有高度，吸顶灯与壁挂空调不会被拽到地面。
  // 视线接近水平时交点会跑到极远处甚至无解，此时丢弃该帧而不是把家具甩出去。
  function groundPoint(e){aim(e);return pickRay.ray.intersectPlane(dragPlane,planeHit)&&Math.abs(planeHit.x)<40&&Math.abs(planeHit.z)<40?{x:planeHit.x,z:planeHit.z}:null;}
@@ -243,6 +283,6 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
    return false;},
   applyLayout(list){for(const spec of list){const f=furniture.find(x=>x.id===spec.id);if(!f)continue;f.group.position.set(spec.x,0,spec.z);f.group.rotation.y=spec.rot*Math.PI/180;}syncFurniture();onLayout?.();},
   // 16 件家具的完整摆位，条数固定，无需比对默认值。
-  layoutState(){const items={};for(const f of furniture)items[f.id]={x:+f.group.position.x.toFixed(3),z:+f.group.position.z.toFixed(3),rot:+((f.group.rotation.y*180/Math.PI%360+360)%360).toFixed(1)};return {version:1,items};},
+  layoutState(){const items={};for(const f of furniture)items[f.id]={x:+f.group.position.x.toFixed(3),z:+f.group.position.z.toFixed(3),rot:+((f.group.rotation.y*180/Math.PI%360+360)%360).toFixed(1)};return {version:LAYOUT_VERSION,items};},
   top(){tween={position:new T.Vector3(4.5,20,4.91),target:new T.Vector3(4.5,0,4.9)};},zoom(factor){tween=null;const offset=camera.position.clone().sub(controls.target);offset.setLength(T.MathUtils.clamp(offset.length()*factor,4,30));camera.position.copy(controls.target).add(offset);},stats(){return {drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,walls:walls.length,hiddenWalls:walls.filter(w=>w.target<1).length};},dispose(){observer.disconnect();renderer.setAnimationLoop(null);controls.dispose();environmentMap.dispose();scene.traverse(o=>{o.geometry?.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();}};
 }

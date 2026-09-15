@@ -28,7 +28,8 @@ export function furnitureDefaults(){return [
   ['bed-b','卧室 B 大床组','b',1.62,6.89,1],['bed-c','卧室 C 床组','c',4.41,6.89,1],
   ['bed-a','卧室 A 单人床','a',2.72,2.43,1],['desk-a','卧室 A 书桌椅','a',3.54,1.44,1],
   ['wardrobe-b','卧室 B 衣柜','b',.38,5.37,1],['wardrobe-c','卧室 C 衣柜','c',4.37,5.04,1],
-  ['wardrobe-s','储物间衣柜','storage',.35,3.42,1],['dresser-s','储物间斗柜','storage',1.22,2.58,1],
+  ['wardrobe-s','储物间衣柜','storage',.28,2.79,1],['bike-cabinet','自行车停车柜','storage',.28,3.90,1],
+  ['desk-gaming','电竞桌椅','storage',1.18,3.04,1],
   ['sofa','客厅沙发','living',8.57,6.58,1],['coffee','客厅茶几','living',7.23,6.64,1],
   ['tv-unit','电视柜','living',5.99,6.48,1],['dining','餐桌与餐椅','living',7.25,4.29,1],
   ['plants-l','客厅绿植','living',8.63,3.11,1],['plants-bal','阳台绿植','balcony',7.08,9.32,1],
@@ -48,7 +49,10 @@ function covered(x0,x1,z0,z1){
   }
   return true;
 }
-export function clampToLayout(x,z,footprint,inset=.08){
+// inset 默认为 0：地面矩形的边界本身就是「墙内面 / 墙中线 / 墙里」三种情况的混合，
+// 再加固定内缩会把原本贴墙的默认摆位判成非法（选中后拖不动，看着像卡死）。
+// 不穿墙由未覆盖的墙体条带保证，不依赖内缩。
+export function clampToLayout(x,z,footprint,inset=0){
   const e=extentOf(footprint),hw=e.w/2+inset,hd=e.d/2+inset;
   return covered(x-hw,x+hw,z-hd,z+hd)?{x,z}:null;
 }
@@ -61,8 +65,11 @@ export function resolveMove(x,z,footprint,from){
   for(let i=1;i<=8;i++){const t=i/8;const spot=clampToLayout(from.x+(x-from.x)*t,from.z+(z-from.z)*t,footprint);if(!spot)break;best=spot;}
   return best||clampToLayout(x,from.z,footprint)||clampToLayout(from.x,z,footprint)||{x:from.x,z:from.z};
 }
+// 家具摆位的存档版本。储物间改作电竞房、旧摆位不再适用时递增，
+// 让旧存档整体失效一次——否则按 id 套用旧坐标会和重排后的家具重叠。
+export const LAYOUT_VERSION=2;
 export function restoreLayout(saved){
-  const items=saved&&typeof saved==='object'&&saved.items&&typeof saved.items==='object'?saved.items:null;
+  const items=saved&&saved.version===LAYOUT_VERSION&&saved.items&&typeof saved.items==='object'?saved.items:null;
   return furnitureDefaults().map(f=>{
     const v=items?items[f.id]:null;if(!v||typeof v!=='object')return f;
     const result={...f};
