@@ -34,8 +34,11 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
   box(home,x+w/2,-.18,z+d/2,w,.34,d,mat('#d0c8b8'),.025);box(home,x+w/2,.005,z+d/2,w,.03,d,type==='wood'?timber:mat(type==='bath'?'#adb8af':'#ded9cc'));
   if(type!=='wood'){for(let a=.6;a<w;a+=.6)box(home,x+a,.022,z+d/2,.007,.002,d,mat('#c4c4b8'));for(let a=.6;a<d;a+=.6)box(home,x+w/2,.022,z+a,w,.002,.007,mat('#c4c4b8'));}
  }
- // 以户型图北向为 -Z，各房间地面独立，保留不规则外轮廓。矩形同时是家具的可行走边界。
- for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
+// 以户型图北向为 -Z，各房间地面独立，保留不规则外轮廓。矩形同时是家具的可行走边界。
+for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
+// 客厅西侧那块凹口（x 6.91~6.99）原来靠着厨房西墙，中间 8 厘米的缝由墙脚吃掉；
+// 厨房拆墙改开放之后这里会露出一条地缝，补一块面砖。
+floor(6.91,1.67,.08,.9,'tile');
  const walls=[];
  function wall(x1,z1,x2,z2,window=false){const length=Math.hypot(x2-x1,z2-z1);const group=new T.Group();group.position.set((x1+x2)/2,0,(z1+z2)/2);group.rotation.y=-Math.atan2(z2-z1,x2-x1);home.add(group);
   const wm=mat('#e5e0d4').clone();wm.transparent=true;const pieces=[];
@@ -45,7 +48,18 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
  }
  wall(0,2.25,0,8.4);wall(0,2.25,1.95,2.25,true);wall(1.98,.86,1.98,2.25);wall(1.98,.86,3.96,.86,true);wall(4.04,.86,5.63,.86,true);wall(4,.86,4,3.6);wall(5.67,.86,5.67,3.63);wall(4.04,2.65,4.43,2.65);wall(5.22,2.65,5.63,2.65);
  wall(2.02,3.62,2.84,3.62);wall(3.68,3.62,4,3.62);wall(1.98,2.25,1.98,3.7);wall(1.98,4.43,1.98,4.65);wall(0,4.64,2.13,4.64);wall(2.98,4.64,4.32,4.64);wall(5.17,4.64,5.67,4.64);wall(3.24,4.68,3.24,8.43);wall(5.67,4.64,5.67,8.43);
- wall(0,8.43,3.2,8.43,true);wall(3.28,8.43,5.63,8.43,true);wall(5.67,8.43,5.67,9.66);wall(5.67,9.66,9.13,9.66,true);wall(9.13,0,9.13,9.66);wall(6.99,0,9.13,0);wall(6.99,0,6.99,1.67,true);wall(6.99,2.43,6.99,2.57);wall(7.82,2.57,9.13,2.57);wall(5.67,1.67,6.99,1.67);
+ wall(0,8.43,3.2,8.43,true);wall(3.28,8.43,5.63,8.43,true);wall(5.67,8.43,5.67,9.66);wall(5.67,9.66,9.13,9.66,true);wall(9.13,0,9.13,9.66);wall(6.99,0,9.13,0);wall(6.99,0,6.99,1.67,true);wall(5.67,1.67,6.99,1.67);
+// 厨房原本南面封到东墙（z=2.57 一道墙加西侧门垛），只留 0.83 米门洞。改成开放式厨房后
+// 这面墙不再砌，只在原墙位留一段岛台把厨房和客厅分开：柜体从旧门洞东侧（x 7.82）一直
+// 连通到东侧橱柜，台面与东侧同高、边缘对齐，两段拼成 L。门洞位置不动，仍是从客厅进厨房的通道。
+// 柜体进深 0.54 米，比原来 0.13 米厚的墙宽得多，必然两侧都探出来；南沿收在 z=2.77，
+// 是为了让客厅绿植（8.63,3.11）最北那片叶子（约 z=2.83）不至于穿出台面。
+const islandX=8.4425;   // 柜体 x 7.82~9.065，正好顶到东墙内面
+box(home,islandX,.45,2.42,1.245,.88,.54,sage,.025);
+// 台面拆成西段与东南角两块，各自与东侧台面边对边贴合而不重叠：两块共面的顶面会互相闪烁。
+box(home,8.0875,.91,2.42,.615,.06,.70,white,.025);       // 西段 x 7.78~8.395
+box(home,8.75,.91,2.615,.71,.06,.31,white,.025);         // 东南角 x 8.395~9.105，z 2.46~2.77
+for(const x of [-.31,.31])box(home,islandX+x,.56,2.697,.34,.018,.02,brass);
  box(home,7.42,.03,8.44,3.38,.04,.065,brass);
  // 地毯是贴地薄片，一旦并入床组或沙发组，包围盒会被撑到 2.7 米以上，在卧室里再也转不开，故作为固定装饰。
  function rug(x,z,w,d){box(home,x,.04,z,w,.035,d,rugMaterial,.04);}
