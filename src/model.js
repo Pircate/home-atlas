@@ -22,7 +22,7 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
  function mat(color,roughness=.8,metalness=0){const key=`${color}/${roughness}/${metalness}`;if(!cache.has(key))cache.set(key,new T.MeshStandardMaterial({color,roughness,metalness}));return cache.get(key);}
  // 配色按参照效果图（俯视剖切渲染）对齐：深红棕木地板与门扇、白墙、深炭灰沙发、
  // 橄榄绿单人椅与地毯、灰白床品。wood 是浅一档的橡木（桌板、椅腿），
- // walnut 是深红棕樱桃木（门扇、柜门、衣柜、床头板、电视柜）。
+ // walnut 是深红棕樱桃木（门扇、厨房柜门、电视柜），卧室衣柜统一用白色。
  const cream=mat('#efeae0'),white=mat('#f5f3ef'),wood=mat('#7b5230'),walnut=mat('#5a2e1e'),
    sage=mat('#879781'),dark=mat('#333c36'),brass=mat('#ac8952',.3,.65),black=mat('#202829',.35),
    fabric=mat('#c9c5bf'),sofa=mat('#3f4442'),steel=mat('#b7bbba',.3,.55);
@@ -31,28 +31,36 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
  function ball(parent,x,y,z,r,m,scale=[1,1,1]){const mesh=new T.Mesh(new T.SphereGeometry(r,20,12),m);mesh.position.set(x,y,z);mesh.scale.set(...scale);mesh.castShadow=true;parent.add(mesh);return mesh;}
  function texture(kind){const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const ctx=canvas.getContext('2d');let seed=37;const rand=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
   if(kind==='wood'){
-   // 深红棕通铺木地板：参照图里地板颜色重、板缝明显，走的是胡桃/柚木那一档。
-   ctx.fillStyle='#5d3623';ctx.fillRect(0,0,512,512);
-   for(let row=0;row<8;row++){ctx.fillStyle=`hsl(18,38%,${21+rand()*8}%)`;ctx.fillRect(0,row*64,512,63);
-    for(let i=0;i<65;i++){ctx.strokeStyle=`rgba(30,13,6,${rand()*.22})`;const y=row*64+rand()*63;ctx.beginPath();ctx.moveTo(0,y);ctx.bezierCurveTo(140,y+2,350,y-3,512,y);ctx.stroke();}
-    ctx.fillStyle='#3d2113';ctx.fillRect((row%3)*170,row*64,2,64);}
+   // 深红棕人字拼：短板长宽比 4:1，正交咬合后整体转 45°。
+   // 每块板的随机种子按贴图周期重复，接缝两侧的颜色和木纹保持一致。
+   const width=512/(8*Math.SQRT2),length=width*4;
+   const plank=(x,y,vertical,key)=>{
+    seed=key+37;ctx.save();ctx.translate(x,y);if(vertical)ctx.rotate(Math.PI/2);
+    ctx.fillStyle=`hsl(${13+rand()*5},${36+rand()*7}%,${20+rand()*6}%)`;ctx.fillRect(.5,.5,length-1,width-1);
+    for(let i=0;i<28;i++){const y=rand()*width;ctx.strokeStyle=`rgba(43,18,12,${.06+rand()*.16})`;ctx.lineWidth=.3+rand()*.6;ctx.beginPath();ctx.moveTo(0,y);ctx.bezierCurveTo(length*.3,y+rand()*3,length*.7,y-rand()*3,length,y);ctx.stroke();}
+    ctx.strokeStyle='rgba(239,186,137,.13)';ctx.lineWidth=.7;ctx.strokeRect(1,1,length-2,width-2);ctx.restore();
+   };
+   ctx.fillStyle='#42261e';ctx.fillRect(0,0,512,512);ctx.translate(256,256);ctx.rotate(Math.PI/4);
+   for(let row=-13;row<=13;row++)for(let col=-4;col<=4;col++){
+    const x=(-row+col*8)*width,y=row*width,key=(((row%8)+8)%8)*2+((col%2)+2)%2;
+    plank(x,y,false,key*113+1);plank(x+length+width,y,true,key*113+53);
+   }
   }else if(kind==='stripe'){
    // 客厅地毯：绿底米色竖条，条上再压一排横向短划线，和参照图的条纹地毯一致。
    const green='#454f33',pale='#c9bfa0';let x=0,i=0;
    while(x<512){const w=i%2?36:92;ctx.fillStyle=i%2?pale:green;ctx.fillRect(x,0,w,512);
     if(i%2===0){ctx.fillStyle='rgba(233,228,214,.42)';for(let y=26;y<512;y+=74)ctx.fillRect(x+18,y,w-36,9);}
     x+=w;i++;}
-  }else{
-   ctx.fillStyle='#c9c5bf';ctx.fillRect(0,0,512,512);
-   for(let i=0;i<512;i+=3){ctx.strokeStyle=i%2?'#a9a59044':'#f4efd455';ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,512);ctx.moveTo(0,i);ctx.lineTo(512,i);ctx.stroke();}
   }
-  const t=new T.CanvasTexture(canvas);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=T.SRGBColorSpace;return t;
+  const t=new T.CanvasTexture(canvas);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.setScalar(kind==='wood'?1:2);t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.colorSpace=T.SRGBColorSpace;return t;
  }
  const timber=new T.MeshStandardMaterial({map:texture('wood'),roughness:.72});
- const rugMaterial=new T.MeshStandardMaterial({map:texture('fabric'),roughness:1});
  const rugStripe=new T.MeshStandardMaterial({map:texture('stripe'),roughness:1});
  function floor(x,z,w,d,type='wood'){
-  box(home,x+w/2,-.18,z+d/2,w,.34,d,mat('#d0c8b8'),.025);box(home,x+w/2,.005,z+d/2,w,.03,d,type==='wood'?timber:mat(type==='bath'?'#e2ded4':'#5c6162'));
+  box(home,x+w/2,-.18,z+d/2,w,.34,d,mat('#d0c8b8'),.025);const surface=box(home,x+w/2,.005,z+d/2,w,.03,d,type==='wood'?timber:mat(type==='bath'?'#e2ded4':'#5c6162'));
+  // 按全屋坐标铺纹理，保持 9×36 厘米的板幅，地面分块不会拉伸或重置拼缝。
+  if(type==='wood'){const pos=surface.geometry.attributes.position,uv=surface.geometry.attributes.uv,tile=.09*8*Math.SQRT2;
+   for(let i=0;i<uv.count;i++)uv.setXY(i,(x+w/2+pos.getX(i))/tile,(z+d/2+pos.getZ(i))/tile);uv.needsUpdate=true;}
   if(type!=='wood'){for(let a=.6;a<w;a+=.6)box(home,x+a,.022,z+d/2,.007,.002,d,mat(type==='bath'?'#cfc9be':'#4a4f50'));for(let a=.6;a<d;a+=.6)box(home,x+w/2,.022,z+a,w,.002,.007,mat(type==='bath'?'#cfc9be':'#4a4f50'));}
  }
 // 地面与墙体全部按如视 VR 实测数据生成（见 layout.js）。房间地面矩形就是墙中线围出的
@@ -76,7 +84,7 @@ const doorSwing={
  'u-zDlW7cmtpya7j4':{hinge:'a',nz:1,angle:95},    // 入户门：铰链在西，向室内开，贴玄关西墙
  'u-179Q4kMTPyabL6':{hinge:'a',nz:1},             // 玄关与过道之间，往过道开
  'u-OfegM4kp8I6voC':{hinge:'b',nz:-1},            // 卧 A：往北开进卧室
- 'u-CyZox0kp8I75Mu':{hinge:'b',nz:-1},            // 卫生间：往北开，铰链在东侧让开洗手台
+ 'u-CyZox0kp8I75Mu':{hinge:'a',nz:-1,angle:85},   // 卫生间：西侧铰链向内开，东侧留给马桶和外置洗手台
  'u-ssaMtxkP8I6YOZ':{hinge:'b',nz:1},             // 卧 B：往南开进卧室
  'u-WF4N16KP8i6X1b':{hinge:'b',nz:1},             // 卧 C：往南开进卧室
  'u-p4971IKp8i70r2':{hinge:'a',nz:-1},            // 储物间：往西开进储物间
@@ -134,14 +142,14 @@ const doorSwing={
 // REMOVED_WALLS，这里统一跳过，门洞随墙一起消失。
 for(const [x1,z1,x2,z2] of WALLS)if(!isWallRemoved(x1,z1,x2,z2))wall(x1,z1,x2,z2);
 
- // 地毯是贴地薄片，一旦并入床组或沙发组，包围盒会被撑到 2.7 米以上，在卧室里再也转不开，故作为固定装饰。
+ // 客厅地毯作为固定装饰，不计入沙发的移动边界。
  function rug(x,z,w,d,material){box(home,x,.04,z,w,.035,d,material,.04);}
-rug(1.83,7.53,2.7,2.8,rugMaterial);rug(7.93,7.33,2.5,2.82,rugStripe);
+ rug(8.08,7.36,2.70,3.26,rugStripe);
  function plant(parent,x,z,height=1){cylinder(parent,x,.18,z,.15,.11,.36,mat('#baa78d'));for(let i=0;i<8;i++){const a=i*2.4;const stem=cylinder(parent,x,.4+height*.2,z,.01,.012,height*.65,wood);stem.rotation.z=Math.sin(a)*.2;const leaf=ball(parent,x+Math.sin(a)*.16,.44+height*(.25+i*.045),z+Math.cos(a)*.17,.17,mat(i%2?'#657b52':'#81916b'),[.65,1.65,.7]);leaf.rotation.z=Math.sin(a)*.6;}}
- function bed(parent,x,z,w,color,length=2.02){const group=new T.Group();group.position.set(x,0,z);parent.add(group);box(group,0,.22,0,w,.32,length+.01,wood,.06);box(group,0,.46,0,w,.25,length,white,.075);box(group,0,.57,-.3*length/2.02,w+.06,.16,1.4*length/2.02,mat(color),.065);box(group,0,.77,length/2-.01,w+.1,1.12,.16,fabric,.06);
-  for(const px of [-w*.25,w*.25])box(group,px,.65,length/2-.32,w*.42,.17,.43,white,.075);for(let i=0;i<7;i++)box(group,-w/2+.06+i*(w-.12)/6,.656,-.38*length/2.02,.014,.006,.9*length/2.02,mat(color),.003);
+ function bed(parent,x,z,w,color,length=2.02,headboard=true){const group=new T.Group();group.position.set(x,0,z);parent.add(group);box(group,0,.22,0,w,.32,length+.01,wood,.06);box(group,0,.46,0,w,.25,length,white,.075);box(group,0,.57,-.3*length/2.02,w+.06,.16,1.4*length/2.02,mat(color),.065);if(headboard)box(group,0,.77,length/2-.01,w+.1,1.12,.16,fabric,.06);
+  for(const px of w<=1.2?[0]:[-w*.25,w*.25])box(group,px,.65,length/2-.32,w*(w<=1.2?.65:.42),.17,.43,white,.075);for(let i=0;i<7;i++)box(group,-w/2+.06+i*(w-.12)/6,.656,-.38*length/2.02,.014,.006,.9*length/2.02,mat(color),.003);
  }
- function wardrobe(parent,x,z,w,d){box(parent,x,1.1,z,w,2.16,d,walnut,.025);for(let i=-w/2+.43;i<w/2;i+=.48){box(parent,x+i,1.1,z+d/2+.006,.009,2.04,.009,mat('#4c2818'));box(parent,x+i-.065,1.06,z+d/2+.03,.02,.29,.027,brass);}}
+ function wardrobe(parent,x,z,w,d){box(parent,x,1.1,z,w,2.16,d,white,.025);for(let i=-w/2+.43;i<w/2;i+=.48){box(parent,x+i,1.1,z+d/2+.006,.009,2.04,.009,mat('#d3d2ce'));box(parent,x+i-.065,1.06,z+d/2+.03,.02,.29,.027,brass);}}
  // 家具按件分组：每组是一个整体，可一起移动和旋转，组内一律用相对锚点的局部坐标。
  // 名称、房间、可旋转性与锚点都取自 state.js 的 furnitureDefaults()，这里只负责造型，
  // 免得默认摆位在两边各写一份、日后必然走样。
@@ -155,7 +163,7 @@ rug(1.83,7.53,2.7,2.8,rugMaterial);rug(7.93,7.33,2.5,2.82,rugStripe);
   furniture.push({...spec,group,footprint:{w:size.x,d:size.z,h:size.y}});
  }
  furnishing('bed-b',g=>bed(g,0,0,1.8,'#7e8974',2));
- furnishing('bed-c',g=>bed(g,0,0,1.8,'#b49c86',2));
+ furnishing('bed-c',g=>bed(g,0,0,1.2,'#b49c86',2,false));
  furnishing('bed-a',g=>bed(g,0,0,1.5,'#889c98',1.8));
  furnishing('wardrobe-a',g=>wardrobe(g,0,0,1,.5));
  // 柜体与门洞共用同一组尺寸，两侧预留 5 厘米，门扇可以完全打开。
@@ -166,7 +174,7 @@ rug(1.83,7.53,2.7,2.8,rugMaterial);rug(7.93,7.33,2.5,2.82,rugStripe);
   for(const [left,right] of [[r.x,d.x-.05],[d.x+d.w+.05,r.x+r.w]]){
    if(right-left>=.18)wardrobe(g,(left+right)/2-anchor.x,0,right-left,.6);
   }
-  if(overhead){box(g,0,2.41,0,r.w,.46,.6,cream,.025);for(let x=-r.w/2+.48;x<r.w/2;x+=.48)box(g,x,2.41,.306,.009,.38,.009,mat('#c5bcaa'));}
+  if(overhead){box(g,0,2.41,0,r.w,.46,.6,white,.025);for(let x=-r.w/2+.48;x<r.w/2;x+=.48)box(g,x,2.41,.306,.009,.38,.009,mat('#d3d2ce'));}
  }
  furnishing('wardrobe-b',g=>northWardrobe(g,'b',true));
  furnishing('wardrobe-c',g=>northWardrobe(g,'c'));
@@ -180,15 +188,16 @@ furnishing('hall-cabinet',g=>{
  box(g,0,.86,-.02,.86,.012,.26,mat('#d9d5c8',.7));
  cylinder(g,-.24,1.10,0,.09,.075,.09,mat('#cfd6cd',.5));
 });
- // 储物间按布局图改作电竞房：西南自行车柜、西北衣柜、东北电竞桌椅。
- // 衣柜贴着西墙，柜门要朝东开，所以套一层绕 Y 转 90 度的子组——wardrobe() 的柜门固定开在 +z 面。
- furnishing('wardrobe-s',g=>{const door=new T.Group();door.rotation.y=Math.PI/2;g.add(door);wardrobe(door,0,0,.92,.40);});
+ // 储物间：西墙开放式自行车架及展示层板，北窗下木色电脑桌，南侧留出开门空间。
  furnishing('bike-cabinet',g=>{
-  // 柜体用比墙面（#e5e0d4）更亮的白，背板压深一档，否则整柜会和墙糊成一片、读不出体积。
-  const shell=mat('#fbfaf5',.85),shelf=mat('#eceae1',.85),back=mat('#dedbcf',.9),tyre=mat('#2b2f30',.55),alloy=mat('#6f7674',.35,.5);
-  box(g,0,.02,0,.40,.04,1.20,shell,.01);box(g,0,1.99,0,.40,.03,1.20,shell,.01);      // 底板与顶板
-  box(g,-.19,1,0,.02,1.97,1.20,back);for(const z of [-.59,.59])box(g,0,1,z,.40,1.97,.02,shell);   // 背板与侧板
-  for(const y of [.62,1.18,1.74])box(g,0,y,0,.36,.02,1.16,shelf);                   // 层板
+  const tyre=mat('#2b2f30',.55),alloy=mat('#6f7674',.35,.5);
+  box(g,0,.04,0,.40,.08,2.20,walnut,.01);
+  box(g,-.19,1.03,0,.02,1.98,2.20,walnut);
+  // 展示层板只放在车身两端，不穿过车架和车轮。
+  for(const z of [-.91,.91])for(const y of [.45,1.02,1.62]){
+   box(g,-.025,y,z,.35,.035,.32,wood,.008);
+   cylinder(g,-.03,y+.10,z,.065,.055,.17,cream);
+  }
   // 立挂的公路车：先在「轮轴为 y=0」的局部系里造平面剪影，再整体绕 X 立起来，
   // 这样车头朝上、车身贴背板，和实拍里那辆车一致。
   const bike=new T.Group();bike.position.set(0,.98,0);bike.rotation.x=-Math.PI/2;g.add(bike);
@@ -205,12 +214,14 @@ furnishing('hall-cabinet',g=>{
  // 电竞桌椅贴着北墙放：显示器收进桌板内侧，否则桌一贴墙、屏就扎进墙里。
  furnishing('desk-gaming',g=>{
   const steel=mat('#4a5350',.4,.4),dark=mat('#2b2f30',.5,.2);
-  box(g,0,.72,0,1.36,.045,.75,mat('#3a4340',.5,.15),.02);                            // 桌面 1.36×0.75
+  box(g,0,.72,0,1.36,.045,.75,wood,.02);                                          // 桌面 1.36×0.75
   for(const x of [-.62,.62])for(const z of [-.30,.30])box(g,x,.36,z,.05,.72,.05,steel);
   box(g,0,.10,0,1.20,.03,.06,steel);
   for(const x of [-.30,.30])for(const z of [-.28,.28])box(g,x,.02,z,.09,.05,.09,dark);
   box(g,0,.79,-.30,.11,.16,.09,dark);box(g,0,.90,-.30,.05,.32,.05,dark);box(g,0,1.12,-.30,.62,.36,.02,mat('#1c2422',.4));   // 显示器
   box(g,0,.752,.02,.46,.02,.15,dark,.01);                                            // 键盘
+  box(g,.42,.752,.05,.07,.025,.10,dark,.025);                                      // 鼠标
+  cylinder(g,-.52,.79,-.18,.055,.045,.11,cream);
   const chair=new T.Group();chair.position.set(.16,0,.50);g.add(chair);              // 主位椅子
   for(let i=0;i<5;i++){const a=i*1.2566;const arm=box(chair,Math.sin(a)*.16,.05,Math.cos(a)*.16,.05,.03,.30,dark,.012);arm.rotation.y=-a;}
   cylinder(chair,0,.25,0,.035,.035,.34,mat('#5a6360',.4,.5));
@@ -224,6 +235,7 @@ furnishing('hall-cabinet',g=>{
   for(const z of [-.89,0,.89]){box(g,-.08,.45,z,.7,.24,.86,sofa,.08);box(g,.2,.79,z,.23,.57,.78,sofa,.07);}
   for(const z of [-1.37,1.37])box(g,-.01,.53,z,.9,.55,.2,sofa,.065);
   for(const [z,color] of [[-.96,'#7f8a63'],[.08,'#f0ece2'],[.82,'#cec8ba']]){const cushion=box(g,-.09,.74,z,.21,.4,.44,mat(color),.055);cushion.rotation.z=.25;cushion.rotation.x=.14;}
+  box(g,0,.26,1.70,.72,.50,.50,walnut,.035);                                      // 南端木色边柜与落地灯相邻
  });
  furnishing('coffee',g=>{cylinder(g,0,.40,0,.43,.43,.07,white);cylinder(g,0,.19,0,.055,.055,.36,mat('#3f4442',.5,.3));
   // 木色圆边几，落在茶几西南侧
@@ -236,8 +248,19 @@ furnishing('hall-cabinet',g=>{
   for(const z of [-1.02,1.02]){cylinder(g,0,.585,z,.09,.07,.13,mat('#cfc8ba'));
    for(let i=0;i<6;i++){const a=i*1.05;ball(g,Math.cos(a)*.1,.72,z+Math.sin(a)*.1,.085,mat(i%2?'#6f7f57':'#81916b'),[.7,1.5,.7]);}}
  });
- furnishing('dining',g=>{cylinder(g,0,.76,-.44,.64,.64,.08,wood);cylinder(g,0,.39,-.44,.16,.3,.72,dark);cylinder(g,0,.87,-.44,.085,.065,.18,cream);
-  for(const [x,z,rotation] of [[-.88,-.44,-Math.PI/2],[.88,-.44,Math.PI/2],[0,.44,0]]){const chair=new T.Group();chair.position.set(x,0,z);chair.rotation.y=rotation;g.add(chair);box(chair,0,.43,0,.47,.12,.45,sage,.065);box(chair,0,.66,.21,.47,.48,.08,sage,.04);for(const dx of [-.16,.16])for(const dz of [-.15,.15])box(chair,dx,.2,dz,.035,.4,.035,wood);}});
+ // 岛台独立于橱柜，南面台板悬挑配两把吧椅，不再另放圆餐桌。
+ furnishing('dining',g=>{
+  box(g,0,.44,-.08,1.55,.84,.54,walnut,.025);box(g,0,.91,0,1.65,.08,.80,white,.025);
+  for(const x of [-.39,.39]){
+   box(g,x,.44,.195,.012,.74,.012,brass);
+   const chair=new T.Group();chair.position.set(x,0,.79);g.add(chair);
+   const shell=new T.Group();shell.position.y=.25;shell.scale.set(.65,.8,.65);shell.rotation.y=Math.PI;chair.add(shell);podChair(shell,'#e6dfd0','#c9c5bf');
+   for(const dx of [-.17,.17])for(const dz of [-.16,.16])box(chair,dx,.29,dz,.035,.58,.035,wood);
+  }
+  cylinder(g,-.48,1.01,-.06,.075,.06,.14,cream);
+  for(let i=0;i<5;i++){const a=i*1.26;ball(g,-.48+Math.sin(a)*.07,1.16,-.06+Math.cos(a)*.07,.07,sage,[.6,1.6,.7]);}
+  cylinder(g,.44,.975,0,.14,.13,.04,dark);for(const x of [.36,.46,.55])ball(g,x,1.03,0,.055,sage);
+ });
 // 单人椅：参照图里地毯南端那把橄榄绿扶手椅，靠背朝南、面向茶几。
 furnishing('armchair',g=>{const green=mat('#66724a',.92);
  box(g,0,.19,0,.78,.38,.72,green,.07);box(g,0,.60,.28,.74,.72,.16,green,.07);
@@ -257,29 +280,42 @@ function podChair(g,shell,pad){
 furnishing('armchair-n',g=>podChair(g,'#e6dfd0','#7f8a63'));
  furnishing('plants-l',g=>plant(g,0,0,1.1));
  furnishing('plants-bal',g=>plant(g,0,0,.8));
- furnishing('kitchen-counter',g=>{box(g,.02,.45,0,.63,.88,2.33,sage,.025);box(g,0,.91,0,.71,.06,2.36,white,.025);for(const z of [-.85,-.01,.78])box(g,-.303,.56,z,.02,.018,.34,brass);
-  box(g,-.04,.945,.77,.46,.016,.47,mat('#89988f',.26,.65),.04);box(g,-.04,.952,.77,.35,.018,.35,dark,.03);cylinder(g,.17,1.07,.77,.022,.022,.24,brass);box(g,.13,1.19,.77,.1,.035,.04,brass,.01);});
- // 岛台沿原厨房南墙布置，与东侧工作台组成 L 形，西侧保留通道。
- box(home,8.9716,.45,3.0304,1.263,.88,.54,sage,.025);
- box(home,8.5966,.91,3.0304,.593,.06,.7,white,.025);
- box(home,9.2481,.91,3.2294,.71,.06,.302,white,.025);
- for(const x of [-.31,.31])box(home,8.9716+x,.56,3.3074,.34,.018,.02,brass);
- // 卫生间：北端淋浴区（顶喷 + 东半侧固定玻璃），西墙木柜洗手台带镜子，东侧马桶。
- // 参照图里进门正对淋浴、右手边是马桶、左手边是洗手台。
+ furnishing('kitchen-counter',g=>{
+  // 北侧水槽台和东侧灶台以端面拼接成 L 形，南端空位放冰箱。
+  box(g,0,.45,-.95,2.0328,.88,.56,walnut,.02);box(g,0,.91,-.95,2.0928,.06,.60,white,.02);
+  box(g,.7464,.45,.035,.54,.88,1.37,walnut,.02);box(g,.7464,.91,.035,.60,.06,1.37,white,.02);
+  for(const x of [-.68,0,.68])box(g,x,.55,-.659,.014,.56,.018,brass);
+  for(const z of [-.40,.30])box(g,.467,.55,z,.018,.02,.29,brass);
+  box(g,0,.949,-.95,.76,.014,.43,steel,.02);
+  for(const x of [-.19,.19])box(g,x,.96,-.95,.32,.016,.33,dark,.025);
+  cylinder(g,0,1.08,-1.16,.018,.018,.25,steel);box(g,0,1.205,-1.08,.035,.035,.19,steel,.01);
+  box(g,0,1.36,-1.235,2.0328,.76,.018,cream);
+  box(g,0,2.03,-1.10,2.0328,.62,.30,cream,.02);
+  for(const x of [-.68,0,.68])box(g,x,2.03,-.944,.012,.55,.012,brass);
+ });
+ // 卫生间门内北侧淋浴、东侧马桶；洗手台放门外东侧凹位，干湿分离。
  furnishing('bath-fixtures',g=>{
-  const porcelain=mat('#f8f7f4',.22),chrome=mat('#c3c7c6',.2,.85),stone=mat('#e3dfd7',.55);
+  const chrome=mat('#c3c7c6',.2,.85),stone=mat('#e3dfd7',.55);
   const glass=new T.MeshStandardMaterial({color:'#bcd2cd',roughness:.08,transparent:true,opacity:.22,depthWrite:false});
-  box(g,-.05,.025,-.57,1.08,.025,.78,stone,.012);                          // 淋浴地台
-  for(const z of [-.86,-.66,-.46,-.26])box(g,-.05,.04,z,1.00,.006,.012,mat('#c9c5bb',.7));
-  box(g,.36,1.02,-.245,.48,1.92,.03,glass,.004);                           // 固定玻璃（留出西半侧进出）
-  cylinder(g,-.25,2.12,-.78,.13,.13,.028,chrome);                          // 顶喷与立管
-  cylinder(g,-.25,1.60,-.86,.018,.018,1.04,chrome);
-  box(g,-.49,.40,.44,.50,.76,.78,walnut,.02);box(g,-.49,.81,.44,.54,.05,.82,white,.02);   // 洗手台
-  ball(g,-.49,.855,.44,.20,mat('#fbfaf7',.2),[.85,.30,1.15]);
-  cylinder(g,-.49,.94,.14,.018,.018,.20,chrome);box(g,-.41,.99,.14,.14,.02,.02,chrome,.005);
-  box(g,-.72,1.34,.44,.02,.60,.74,mat('#cfd6d3',.15,.6),.01);              // 镜子
-  box(g,.60,.42,.10,.18,.62,.50,porcelain,.04);                            // 马桶：水箱贴东墙
-  cylinder(g,.34,.20,.10,.21,.24,.40,porcelain);ball(g,.34,.50,.10,.26,porcelain,[.86,.28,1.25]);
+  box(g,-.23,.035,-.46,1.04,.035,.72,stone,.012);
+  for(const z of [-.73,-.55,-.37,-.19])box(g,-.23,.058,z,.98,.006,.012,mat('#c9c5bb',.7));
+  box(g,.30,1.02,-.46,.025,1.92,.72,glass,.004);                          // 东侧固定玻璃，南侧进出
+  cylinder(g,-.35,2.12,-.69,.13,.13,.028,chrome);
+  cylinder(g,-.35,1.60,-.79,.018,.018,1.04,chrome);
+ });
+ furnishing('bath-toilet',g=>{
+  const porcelain=mat('#f8f7f4',.22);
+  box(g,.26,.42,0,.18,.62,.46,porcelain,.04);
+  cylinder(g,0,.20,0,.20,.22,.40,porcelain);ball(g,0,.50,0,.25,porcelain,[1.25,.28,.86]);
+ });
+ furnishing('bath-vanity',g=>{
+  const chrome=mat('#c3c7c6',.2,.85);
+  box(g,0,.035,0,.54,.03,.72,cream,.01);
+  box(g,0,.41,0,.50,.76,.64,walnut,.02);box(g,0,.82,0,.54,.06,.68,white,.02);
+  ball(g,-.04,.87,0,.20,mat('#fbfaf7',.2),[.9,.30,1.25]);
+  cylinder(g,.17,.96,0,.016,.016,.20,chrome);box(g,.11,1.05,0,.14,.025,.025,chrome,.005);
+  box(g,.262,1.41,0,.015,.78,.60,mat('#cfd6d3',.15,.6),.01);
+  cylinder(g,.06,.91,-.25,.045,.04,.12,cream);
  });
  const visuals=new Map(),clickable=[];let devices=initialDevices;
  for(const d of devices){
@@ -297,6 +333,7 @@ furnishing('armchair-n',g=>podChair(g,'#e6dfd0','#7f8a63'));
    if(['ac-b','ac-c'].includes(d.id))group.rotation.y=Math.PI/2; // 北墙柜占用原机位，空调改挂西墙、出风朝东。
    const side=d.room==='living';box(group,0,0,0,side?.24:1.03,.31,side?1.03:.24,white,.06);for(let i=0;i<5;i++)box(group,side?-.125:0,-.085+i*.02,side?0:.125,side?.012:.87,.007,side?.87:.012,mat('#b0b8ac'));glow=ball(group,side?-.13:.39,.07,side?.38:.13,.02,mat('#6aac8c').clone());
   }else if(d.type==='fridge'){
+   group.rotation.y=-Math.PI/2; // 冰箱背靠东墙，向西开门，位于灶台南端。
    box(group,0,0,0,.67,1.9,.66,mat('#9ea9a2',.34,.45),.045);box(group,0,.2,.334,.015,1.37,.012,dark);box(group,0,-.5,.335,.61,.014,.01,dark);for(const x of [-.065,.065])box(group,x,.16,.36,.025,.48,.03,dark,.01);
   }else if(d.type==='washer'){
    box(group,0,0,0,.67,.88,.63,white,.04);const door=cylinder(group,0,-.03,.335,.237,.237,.055,black);door.rotation.x=Math.PI/2;rotor=new T.Group();rotor.position.set(0,-.03,.371);group.add(rotor);const drum=cylinder(rotor,0,0,0,.18,.18,.02,mat('#6e8983',.15,.65));drum.rotation.x=Math.PI/2;for(let i=0;i<3;i++){const fin=box(rotor,Math.cos(i*2.094)*.07,Math.sin(i*2.094)*.07,.015,.025,.14,.012,mat('#c0ccc3',.3,.5),.008);fin.rotation.z=i*2.094;}box(group,-.17,.32,.329,.12,.05,.013,dark);ball(group,.2,.32,.34,.04,brass);

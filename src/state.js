@@ -42,20 +42,22 @@ const blocked=(x,z)=>barriers.some(b=>within(b,x,z))&&!gates.some(g=>gated(g,x,z
 export const BOUNDS=WALLS.reduce((b,[x1,z1,x2,z2])=>({x0:Math.min(b.x0,x1,x2),x1:Math.max(b.x1,x1,x2),
   z0:Math.min(b.z0,z1,z2),z1:Math.max(b.z1,z1,z2)}),{x0:Infinity,x1:-Infinity,z0:Infinity,z1:-Infinity});
 // 家具分组：每组作为整体移动旋转，锚点是组内局部坐标的原点。
-// 保留已确认的卧室床位、北墙衣柜和储物间布置，按实测房间的墙内边界平移到新坐标。
+// 卧室保留已确认布局，公共区域按效果图布置，均以实测墙内边界落位。
 // 实测家具足迹仅作为原房源参考，装修方案的床宽与朝向以已确认布局为准。
 // rot 是绕 Y 轴的度数，床组的「床头」在组内 +z 方向：0=床头朝南、90=朝东、180=朝北、270=朝西。
 export function furnitureDefaults(){return [
-  ['bed-b','卧室 B 大床 2×1.8米','b',1.25,8.1621,1,270],['bed-c','卧室 C 大床 2×1.8米','c',4.5669,8.1621,1,270],
+  ['bed-b','卧室 B 大床 2×1.8米','b',1.25,8.1621,1,270],['bed-c','卧室 C 单人床 2×1.2米','c',4.1274,8.1068,1],
   ['bed-a','卧室 A 床 1.8×1.5米','a',3.2176,2.2709,1,270],['wardrobe-a','卧室 A 一米衣柜','a',2.4976,3.6569,1,90],
   ['wardrobe-b','卧室 B 北墙整墙柜','b',1.7785,5.7151,1],['wardrobe-c','卧室 C 北墙衣柜','c',4.7649,5.7151,1],
-  ['wardrobe-s','储物间衣柜','storage',.38,3.3496,1],['bike-cabinet','自行车停车柜','storage',.38,4.6946,1],
-  ['desk-gaming','电竞桌椅','storage',1.43,3.4796,1],
-  ['sofa','客厅沙发','living',9.08,6.90,1],['coffee','客厅茶几','living',7.88,6.75,1],
-  ['armchair','客厅单人椅','living',9.02,8.75,1],['armchair-n','客厅圆壳椅','living',7.90,5.80,1,180],
-  ['tv-unit','电视柜与绿植','living',6.39,7.17,1],['dining','餐桌与餐椅','living',7.75,4.8884,1],
-  ['plants-l','客厅绿植','living',8.95,5.05,1],['plants-bal','阳台绿植','balcony',7.52,10.13,1],
-  ['kitchen-counter','厨房橱柜','kitchen',9.2481,1.8984,1],['bath-fixtures','卫浴洁具','bath',5.16,2.33,0],
+  ['bike-cabinet','西墙自行车与展示架','storage',.40,4.08,1],
+  ['desk-gaming','电脑桌椅','storage',1.41,3.31,1],
+  ['sofa','客厅沙发与边柜','living',9.13,7.14,1],['coffee','客厅茶几','living',8.05,7.10,1],
+  ['armchair','客厅单人椅','living',8.10,8.56,1,25],['armchair-n','客厅圆壳椅','living',8.05,5.88,1],
+  ['tv-unit','电视柜与绿植','living',6.39,7.20,1],['dining','独立岛台与双人吧椅','kitchen',7.95,3.93,1],
+  ['plants-l','客厅绿植','living',9.19,5.13,1],['plants-bal','阳台绿植','balcony',7.52,10.13,1],
+  ['kitchen-counter','L形橱柜与北侧水槽','kitchen',8.5567,1.8484,1],['bath-fixtures','淋浴房','bath',5.20,2.33,0],
+  ['bath-toilet','马桶','bath',5.64,2.56,1],
+  ['bath-vanity','卫生间外置洗手台','hall',5.76,3.80,1],
   ['hall-cabinet','玄关鞋柜','hall',7.22,1.10,1,270],
 ].map(([id,name,room,x,z,rotatable,rot=0])=>({id,name,room,x,z,rot,rotatable:!!rotatable}));}
 // 旋转后的轴对齐包围盒：rot 为 90 度时宽高互换。
@@ -93,7 +95,7 @@ export function resolveMove(x,z,footprint,from){
 }
 // 家具摆位的存档版本。房间重排、旧摆位不再适用时递增，
 // 让旧存档整体失效一次——否则按 id 套用旧坐标会和重排后的家具重叠。
-export const LAYOUT_VERSION=6;
+export const LAYOUT_VERSION=10;
 export function restoreLayout(saved){
   const items=saved&&saved.version===LAYOUT_VERSION&&saved.items&&typeof saved.items==='object'?saved.items:null;
   return furnitureDefaults().map(f=>{
@@ -109,9 +111,9 @@ const attachments={'tv':'tv-unit','stove':'kitchen-counter'};
 const fixedDevices=new Set(['living-main','dining-light','b-main','c-main','a-main','k-main','bath-main','storage-light','hall-light','ac-living','ac-b','ac-c','hood','heater','balcony-light']);
 export function createDevices(){return [
  ['living-main','客厅吊灯','living','light',7.75,2.25,7.19,true,38],
- ['dining-light','餐厅吊灯','living','light',7.75,2.18,4.4484,true,22],
- ['floor-light','沙发落地灯','living','light',9.06,1.5,8.6,true,9],
- ['tv','客厅电视','living','tv',6.37,1.15,7.17,false,110],
+ ['dining-light','岛台吊灯','kitchen','light',7.95,2.18,3.93,true,22],
+ ['floor-light','沙发落地灯','living','light',9.13,1.5,8.84,true,9],
+ ['tv','客厅电视','living','tv',6.37,1.15,7.20,false,110],
  ['ac-living','客厅空调','living','ac',9.45,2.2,5.31,true,820],
  ['speaker','无线音箱','living','speaker',6.4,.68,6.2,false,12],
  ['b-main','卧室 B 主灯','b','light',1.83,2.35,7.07,false,24],
@@ -120,9 +122,9 @@ export function createDevices(){return [
  ['ac-c','卧室 C 空调','c','ac',3.6169,2.18,6.6381,false,580],
  ['a-main','卧室 A 主灯','a','light',3.28,2.35,3.05,false,18],
  ['k-main','厨房吸顶灯','kitchen','light',8.34,2.35,2.01,true,20],
- ['fridge','双门冰箱','kitchen','fridge',7.8951,.99,.9984,true,85],
- ['hood','抽油烟机','kitchen','hood',9.1681,1.72,1.6584,false,180],
- ['stove','电磁灶','kitchen','stove',9.1481,.95,1.6584,false,1200],
+ ['fridge','双门冰箱','kitchen','fridge',9.25,.99,2.9784,true,85],
+ ['hood','抽油烟机','kitchen','hood',9.2281,1.72,1.7984,false,180],
+ ['stove','电磁灶','kitchen','stove',9.2481,.95,1.7984,false,1200],
  ['bath-main','浴室灯','bath','light',5.24,2.35,2.15,false,18],
  ['heater','热水器','bath','heater',5.46,1.95,1.7,true,1500],
  ['storage-light','储物间灯','storage','light',1.18,2.35,4.07,false,14],

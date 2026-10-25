@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {createDevices,applyScene,power,restore,slabs,furnitureDefaults,extentOf,clampToLayout,resolveMove,restoreLayout,LAYOUT_VERSION,BOUNDS,OPENINGS,REMOVED_WALLS,isWallRemoved} from './state.js';
 import {ROOMS,WALLS,WALL_THICKNESS} from './layout.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`期望 ${a} 接近 ${b}`);
-test('每台设备标识唯一，客厅三盏灯可以独立控制',()=>{const devices=createDevices();assert.equal(new Set(devices.map(d=>d.id)).size,21);const lamps=devices.filter(d=>d.room==='living'&&d.type==='light');assert.equal(lamps.length,3);lamps[0].on=false;assert(lamps[1].on);});
+test('每台设备标识唯一，客厅与岛台灯光可以独立控制',()=>{const devices=createDevices();assert.equal(new Set(devices.map(d=>d.id)).size,21);const lamps=devices.filter(d=>d.room==='living'&&d.type==='light');assert.equal(lamps.length,2);lamps[0].on=false;assert(lamps[1].on);assert(devices.find(d=>d.id==='dining-light'&&d.room==='kitchen').on);});
 test('离家关闭非必要设备，保留冰箱与热水器原状态',()=>{const devices=createDevices();const next=applyScene(devices,'away');assert(next.filter(d=>!['fridge','heater'].includes(d.type)).every(d=>!d.on&&!d.running));assert(next.find(d=>d.type==='fridge').on);assert(devices[0].on);});
 test('松弛夜晚保留45%亮度的落地灯',()=>{const lit=applyScene(createDevices(),'relax').filter(d=>d.type==='light'&&d.on);assert.deepEqual(lit.map(d=>d.id),['floor-light']);assert(lit.every(d=>d.brightness===45));});
 test('状态恢复限制参数和移动设备坐标，固定设备使用新模型位置',()=>{const defaults=createDevices();const next=restore(defaults,[null,{id:'living-main',name:'错误',x:999,z:-5,brightness:999,on:false},{id:'fridge',x:999,z:-5},{id:'ac-b',x:1.55,z:4.82}]);assert.equal(next[0].name,'客厅吊灯');assert.equal(next[0].x,defaults[0].x);assert.equal(next[0].z,defaults[0].z);assert.equal(next[0].brightness,100);assert.equal(next[0].on,false);assert.equal(next.find(d=>d.id==='fridge').x,BOUNDS.x1);assert.equal(next.find(d=>d.id==='fridge').z,BOUNDS.z0);assert.deepEqual(next.find(d=>d.id==='ac-b'),defaults.find(d=>d.id==='ac-b'));});
-test('未存档的设备保留默认坐标',()=>{const next=restore(createDevices(),[{id:'fridge',on:false}]);assert.equal(next.find(d=>d.id==='fridge').x,7.8951);assert.equal(next.find(d=>d.id==='tv').x,6.37);});
+test('未存档的设备保留默认坐标',()=>{const next=restore(createDevices(),[{id:'fridge',on:false}]);assert.equal(next.find(d=>d.id==='fridge').x,9.25);assert.equal(next.find(d=>d.id==='tv').x,6.37);});
 test('模拟灯光功率随亮度变化',()=>{assert.equal(power([{on:true,type:'light',watts:20,brightness:50},{on:false,watts:900}]),10);});
 test('家具标识唯一，且与设备标识不冲突',()=>{const furniture=furnitureDefaults(),ids=furniture.map(f=>f.id);assert.equal(new Set(ids).size,furniture.length);const deviceIds=new Set(createDevices().map(d=>d.id));assert(ids.every(id=>!deviceIds.has(id)));});
 test('旋转后的包围盒宽深互换',()=>{const e=extentOf({w:1.6,d:2.03,rot:90});close(e.w,2.03);close(e.d,1.6);const f=extentOf({w:1.6,d:2.03,rot:0});close(f.w,1.6);close(f.d,2.03);});
@@ -41,10 +41,10 @@ test('目标越界时贴墙走到最远处，而不是原地不动',()=>{const f
  assert(clampToLayout(east.x,east.z,foot),'停下时位置仍然合法');});
 test('合法位置原样返回，且允许家具转出边界时留在原地',()=>{assert.deepEqual(clampToLayout(1.6,6.5,{w:.5,d:.5}),{x:1.6,z:6.5});assert.equal(clampToLayout(0,0,{w:2.7,d:2.8}),null);});
 test('家具存档为空或损坏时回落到完整默认摆位',()=>{const full=furnitureDefaults();for(const bad of [null,undefined,{},'x',{items:null},{version:1},{items:{'不存在的家具':{x:1,z:1}}}])assert.deepEqual(restoreLayout(bad),full);});
-test('家具存档只覆盖改动项并归一化角度',()=>{const next=restoreLayout({version:LAYOUT_VERSION,items:{sofa:{x:6,z:6.5,rot:-90},'卧室B大床组':{rot:450}}});assert.deepEqual(next.find(f=>f.id==='sofa'),{id:'sofa',name:'客厅沙发',room:'living',x:6,z:6.5,rot:270,rotatable:true});assert.equal(next.find(f=>f.id==='bed-b').x,1.25);assert.equal(next.find(f=>f.id==='bed-b').rot,270);});
+test('家具存档只覆盖改动项并归一化角度',()=>{const next=restoreLayout({version:LAYOUT_VERSION,items:{sofa:{x:6,z:6.5,rot:-90},'卧室B大床组':{rot:450}}});assert.deepEqual(next.find(f=>f.id==='sofa'),{id:'sofa',name:'客厅沙发与边柜',room:'living',x:6,z:6.5,rot:270,rotatable:true});assert.equal(next.find(f=>f.id==='bed-b').x,1.25);assert.equal(next.find(f=>f.id==='bed-b').rot,270);});
 test('卧室保留已确认床位，按实测墙内边界落位',()=>{
  const furniture=furnitureDefaults();
- for(const [id,w,d,side] of [['b',1.8,2,'south'],['c',1.8,2,'south'],['a',1.5,1.8,'north']]){
+ for(const [id,w,d,side] of [['b',1.8,2,'south'],['a',1.5,1.8,'north']]){
   const bed=furniture.find(f=>f.id===`bed-${id}`),[x,z,rw,rd]=ROOMS.find(r=>r.id===id).extent;
   assert.equal(bed.rot,270,'床头均朝西');
   assert(clampToLayout(bed.x,bed.z,{w:w,d,rot:bed.rot}),`${id} 床垫必须留在房内`);
@@ -53,6 +53,11 @@ test('卧室保留已确认床位，按实测墙内边界落位',()=>{
   const edge=side==='south'?z+rd-WALL_THICKNESS/2:z+WALL_THICKNESS/2;
   assert(Math.abs(bed.z+(side==='south'?1:-1)*(w+.1)/2-edge)<1e-3,`${id} 床侧贴窗且不穿墙`);
  }
+ const single=furniture.find(f=>f.id==='bed-c'),[cx,cz,,cd]=ROOMS.find(r=>r.id==='c').extent;
+ assert.equal(single.rot,0,'卧 C 单人床床头朝南');
+ assert(clampToLayout(single.x,single.z,{w:1.26,d:2.01}),'单人床连床品、床架不能穿墙');
+ assert(Math.abs(single.x-1.26/2-(cx+WALL_THICKNESS/2))<1e-3,'单人床侧面靠西墙且床品不穿墙');
+ assert(Math.abs(single.z+2.01/2-(cz+cd-WALL_THICKNESS/2))<1e-3,'单人床床头贴南侧');
  assert(furniture.some(f=>f.id==='wardrobe-a'&&f.rot===90),'卧 A 一米衣柜保留且柜门朝东');
  assert(furniture.some(f=>f.id==='bike-cabinet'),'保留自行车停车柜');
  assert(furniture.every(f=>f.id!=='desk-a'),'卧 A 不恢复书桌');
@@ -60,8 +65,8 @@ test('卧室保留已确认床位，按实测墙内边界落位',()=>{
 });
 test('旧版本的家具存档被整体丢弃，不按 id 套用到重排后的家具上',()=>{const next=restoreLayout({version:LAYOUT_VERSION-1,items:{'wardrobe-s':{x:.35,z:3.42},sofa:{x:6,z:6.5}}});
  assert.deepEqual(next,furnitureDefaults(),'旧版本存档应回落到默认摆位');});
-test('非数值的坐标与角度被忽略',()=>{const next=restoreLayout({items:{sofa:{x:'远',z:NaN,rot:'转'}}});assert.equal(next.find(f=>f.id==='sofa').x,9.08);assert.equal(next.find(f=>f.id==='sofa').rot,0);});
-test('只有卫生间洁具因净宽不足不可旋转',()=>{const off=furnitureDefaults().filter(f=>!f.rotatable).map(f=>f.id);assert.deepEqual(off,['bath-fixtures']);});
+test('非数值的坐标与角度被忽略',()=>{const next=restoreLayout({version:LAYOUT_VERSION,items:{sofa:{x:'远',z:NaN,rot:'转'}}});assert.equal(next.find(f=>f.id==='sofa').x,9.13);assert.equal(next.find(f=>f.id==='sofa').rot,0);});
+test('淋浴房保留固定朝向，马桶和外置洗手台可独立摆放',()=>{const furniture=furnitureDefaults(),off=furniture.filter(f=>!f.rotatable).map(f=>f.id);assert.deepEqual(off,['bath-fixtures']);assert(furniture.find(f=>f.id==='bath-toilet').rotatable);assert(furniture.find(f=>f.id==='bath-vanity').rotatable);});
 test('每组家具的默认摆位都落在可行走区域内',()=>{for(const f of furnitureDefaults())assert(clampToLayout(f.x,f.z,{w:.3,d:.3}),`${f.name} 的默认锚点越界`);});
 test('地面矩形的尺寸与类型完整',()=>{assert.equal(slabs.length,32);for(const s of slabs){assert(s.w>0&&s.d>0,`${s.room} 尺寸非法`);assert(['wood','tile','bath',undefined].includes(s.type));}});
 test('每个门窗洞口都落在某段墙的中线上',()=>{for(const o of OPENINGS)

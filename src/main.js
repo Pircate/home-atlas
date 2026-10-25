@@ -9,7 +9,7 @@ const refreshIcons=()=>createIcons({icons,attrs:{'stroke-width':1.5}});
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const roomIcons={all:'house',living:'armchair',b:'bed-double',c:'bed-double',a:'bed-double',kitchen:'cooking-pot',bath:'bath',storage:'package',balcony:'flower-2',entry:'footprints',hall:'footprints'};
 const typeIcons={light:'lightbulb',ac:'snowflake',tv:'tv',fridge:'refrigerator',washer:'washing-machine',hood:'wind',stove:'flame',heater:'flame',speaker:'speaker'};
-let devices=createDevices();try{devices=restore(devices,JSON.parse(localStorage.getItem('habitat-devices-v3')));}catch{}
+let devices=createDevices();try{devices=restore(devices,JSON.parse(localStorage.getItem('habitat-devices-v4')));}catch{}
 let layout=furnitureDefaults();try{layout=restoreLayout(JSON.parse(localStorage.getItem('habitat-layout-v1')));}catch{}
 const furnitureNames=new Map(furnitureDefaults().map(f=>[f.id,f.name]));
 const rotatableFurniture=new Set(furnitureDefaults().filter(f=>f.rotatable).map(f=>f.id));
@@ -46,7 +46,7 @@ function renderDevices(){const visible=devices.filter(d=>(room==='all'||d.room==
  $('#device-list').innerHTML=visible.map(d=>`<div class="device-row ${selected===d.id?'selected':''}"><button class="device-open" data-device="${d.id}" aria-label="控制${d.name}"><span class="device-icon ${d.on?'on':''}">${icon(typeIcons[d.type])}</span><span class="device-text"><strong>${d.name}</strong><small>${status(d)}</small></span></button><button class="toggle ${d.on?'on':''}" data-toggle="${d.id}" role="switch" aria-checked="${d.on}" aria-label="${d.name}电源"><span></span></button></div>`).join('')||'<p class="empty">这个房间没有此类设备</p>';
  $('#device-count').textContent=visible.length+' 个';$('#on-count').innerHTML=devices.filter(d=>d.on).length+'<small>台</small>';$('#power').innerHTML=power(devices)+'<small>W</small>';$('#lit-count').textContent=devices.filter(d=>d.type==='light'&&d.on).length+' 盏灯已点亮';refreshIcons();
 }
-function commit(render=true){home?.update(devices);try{localStorage.setItem('habitat-devices-v3',JSON.stringify(devices));$('#saved').innerHTML=icon('check')+' 已保存';}catch{$('#saved').textContent='本次会话有效';}renderDevices();if(render&&selected)renderDetail();}
+function commit(render=true){home?.update(devices);try{localStorage.setItem('habitat-devices-v4',JSON.stringify(devices));$('#saved').innerHTML=icon('check')+' 已保存';}catch{$('#saved').textContent='本次会话有效';}renderDevices();if(render&&selected)renderDetail();}
 let toastTimer;function toast(text){$('#toast').textContent=text;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2600);}
 // 家具摆位单独落盘，拖动过程中不调用，避免每帧写 localStorage 并重建设备列表。
 function persistLayout(){try{localStorage.setItem('habitat-layout-v1',JSON.stringify(home.layoutState()));$('#saved').innerHTML=icon('check')+' 已保存';}catch{$('#saved').textContent='本次会话有效';}}
