@@ -93,6 +93,15 @@ const doorSwing={
  'u-p4971IKp8i70r2':{hinge:'a',nz:-1},            // 储物间：往西开进储物间
  // 厨房那樘门（u-MmaJs6Kp8i7dXu）随厨房南墙一起拆掉了，改成开放式厨房，故不再列在这里。
 };
+// 客厅与过道之间保留门洞但不装门扇；该门洞与三间卧室、储物间都不做门槛。
+const doorlessOpenings=new Set(['u-0KyCJFMTpYc0qg']);
+const thresholdlessOpenings=new Set([
+ ...doorlessOpenings,
+ 'u-OfegM4kp8I6voC',   // 卧室 A
+ 'u-ssaMtxkP8I6YOZ',   // 卧室 B
+ 'u-WF4N16KP8i6X1b',   // 卧室 C
+ 'u-p4971IKp8i70r2',   // 储物间
+]);
  const walls=[];
  function wall(x1,z1,x2,z2){
   const {length,items}=openingsOf(x1,z1,x2,z2);
@@ -102,8 +111,14 @@ const doorSwing={
   // 注意别把墙厚命名成 T：外层是 `import * as T from 'three'`，函数里再 const T 会遮蔽它，
   // 而本函数开头就要用 T.Group / T.Box3，直接踩 TDZ（构建后报 “Cannot access 'N' before initialization”）。
   const L=t=>t-length/2;                        // 沿墙距离 → 组内局部坐标
-  // 墙脚整段拉通（含洞口下方），对应墙身的实心段则按洞口切分。
-  box(group,0,.095,0,length,.19,.13,cream);
+  // 墙脚在普通门洞下方连续形成门槛，在指定门洞处断开，让地面通铺过去。
+  const plinth=(a,b)=>{if(b-a<.004)return;box(group,L((a+b)/2),.095,0,b-a,.19,.13,cream);};
+  let plinthCursor=0;
+  for(const o of items)if(thresholdlessOpenings.has(o.id)){
+   const a=o.t-o.len/2,b=o.t+o.len/2;
+   plinth(plinthCursor,a);plinthCursor=b;
+  }
+  plinth(plinthCursor,length);
   const solid=(a,b)=>{if(b-a<.004)return;pieces.push(box(group,L((a+b)/2),(BASE+TOP)/2,0,b-a,TOP-BASE,TH,wm));};
   let cursor=0;
   for(const o of items){
@@ -129,6 +144,7 @@ const doorSwing={
   const dm=mat('#5a2e1e',.5,.05).clone();dm.transparent=true;
   for(const o of items){
    if(o.kind!=='door'&&o.kind!=='entry')continue;
+   if(doorlessOpenings.has(o.id))continue;
    const spec=doorSwing[o.id]||{hinge:'a',nz:1,angle:75};
    const a=o.t-o.len/2,b=o.t+o.len/2,hingeAt=spec.hinge==='b'?b:a,side=spec.hinge==='b'?-1:1;
    const pivot=new T.Group();pivot.position.set(L(hingeAt),0,0);
