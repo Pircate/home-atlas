@@ -2,8 +2,8 @@ import * as T from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {rooms,slabs,resolveMove,clampToLayout,LAYOUT_VERSION} from './state.js';
-import {plan,wallSegments,doorways} from './plan.js';
+import {rooms,slabs,resolveMove,clampToLayout,LAYOUT_VERSION,isWallRemoved} from './state.js';
+import {ROOMS,WALLS,OPENINGS,WALL_HEIGHT,WALL_THICKNESS} from './layout.js';
 
 export function createHome(container,initialDevices,initialLayout,{onSelect,onFurniture,onLayout}={}){
  const layout=new Map(initialLayout.map(f=>[f.id,f]));
@@ -13,64 +13,135 @@ export function createHome(container,initialDevices,initialLayout,{onSelect,onFu
  renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;container.appendChild(renderer.domElement);
  const pmrem=new T.PMREMGenerator(renderer),environment=new RoomEnvironment();
  const environmentMap=pmrem.fromScene(environment,.04);scene.environment=environmentMap.texture;scene.environmentIntensity=.3;environment.dispose();pmrem.dispose();
- const camera=new T.PerspectiveCamera(38,1,.1,100);camera.position.set(12,13.7,18);
- const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(4.73,.1,4.88);controls.enableDamping=true;controls.dampingFactor=.08;controls.minDistance=4;controls.maxDistance=30;controls.minPolarAngle=.02;controls.maxPolarAngle=Math.PI*.46;
+ const camera=new T.PerspectiveCamera(38,1,.1,120);camera.position.set(12.6,14.4,19.2);
+ const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(4.88,.1,5.52);controls.enableDamping=true;controls.dampingFactor=.08;controls.minDistance=4;controls.maxDistance=34;controls.minPolarAngle=.02;controls.maxPolarAngle=Math.PI*.46;
  const home=new T.Group();scene.add(home);
  const hemi=new T.HemisphereLight('#eef2ff','#a09078',1.1);scene.add(hemi);
  const sun=new T.DirectionalLight('#fff2dc',2.3);sun.position.set(-5,12,9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-13,right:13,top:13,bottom:-13});sun.shadow.normalBias=.035;scene.add(sun);
  const cache=new Map();
  function mat(color,roughness=.8,metalness=0){const key=`${color}/${roughness}/${metalness}`;if(!cache.has(key))cache.set(key,new T.MeshStandardMaterial({color,roughness,metalness}));return cache.get(key);}
- const cream=mat('#e9e4d9'),white=mat('#f2eee5'),wood=mat('#a78159'),sage=mat('#879781'),dark=mat('#333c36'),brass=mat('#ac8952',.3,.65),black=mat('#202829',.35),fabric=mat('#cec5b4');
+ // 配色按参照效果图（俯视剖切渲染）对齐：深红棕木地板与门扇、白墙、深炭灰沙发、
+ // 橄榄绿单人椅与地毯、灰白床品。wood 是浅一档的橡木（桌板、椅腿），
+ // walnut 是深红棕樱桃木（门扇、柜门、衣柜、床头板、电视柜）。
+ const cream=mat('#efeae0'),white=mat('#f5f3ef'),wood=mat('#7b5230'),walnut=mat('#5a2e1e'),
+   sage=mat('#879781'),dark=mat('#333c36'),brass=mat('#ac8952',.3,.65),black=mat('#202829',.35),
+   fabric=mat('#c9c5bf'),sofa=mat('#3f4442'),steel=mat('#b7bbba',.3,.55);
  function box(parent,x,y,z,w,h,d,m,r=0){const mesh=new T.Mesh(r?new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/3,h/3,d/3)):new T.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
  function cylinder(parent,x,y,z,rt,rb,h,m){const mesh=new T.Mesh(new T.CylinderGeometry(rt,rb,h,24),m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
  function ball(parent,x,y,z,r,m,scale=[1,1,1]){const mesh=new T.Mesh(new T.SphereGeometry(r,20,12),m);mesh.position.set(x,y,z);mesh.scale.set(...scale);mesh.castShadow=true;parent.add(mesh);return mesh;}
  function texture(kind){const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const ctx=canvas.getContext('2d');let seed=37;const rand=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
-  ctx.fillStyle=kind==='wood'?'#c2a17a':'#c7c1ae';ctx.fillRect(0,0,512,512);
-  if(kind==='wood')for(let row=0;row<8;row++){ctx.fillStyle=`hsl(34,30%,${64+rand()*8}%)`;ctx.fillRect(0,row*64,512,63);for(let i=0;i<65;i++){ctx.strokeStyle=`rgba(93,63,31,${rand()*.13})`;const y=row*64+rand()*63;ctx.beginPath();ctx.moveTo(0,y);ctx.bezierCurveTo(140,y+2,350,y-3,512,y);ctx.stroke();}ctx.fillStyle='#ab8d67';ctx.fillRect((row%3)*170,row*64,1,64);}
-  else for(let i=0;i<512;i+=3){ctx.strokeStyle=i%2?'#a9a59044':'#f4efd455';ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,512);ctx.moveTo(0,i);ctx.lineTo(512,i);ctx.stroke();}
+  if(kind==='wood'){
+   // 深红棕通铺木地板：参照图里地板颜色重、板缝明显，走的是胡桃/柚木那一档。
+   ctx.fillStyle='#5d3623';ctx.fillRect(0,0,512,512);
+   for(let row=0;row<8;row++){ctx.fillStyle=`hsl(18,38%,${21+rand()*8}%)`;ctx.fillRect(0,row*64,512,63);
+    for(let i=0;i<65;i++){ctx.strokeStyle=`rgba(30,13,6,${rand()*.22})`;const y=row*64+rand()*63;ctx.beginPath();ctx.moveTo(0,y);ctx.bezierCurveTo(140,y+2,350,y-3,512,y);ctx.stroke();}
+    ctx.fillStyle='#3d2113';ctx.fillRect((row%3)*170,row*64,2,64);}
+  }else if(kind==='stripe'){
+   // 客厅地毯：绿底米色竖条，条上再压一排横向短划线，和参照图的条纹地毯一致。
+   const green='#454f33',pale='#c9bfa0';let x=0,i=0;
+   while(x<512){const w=i%2?36:92;ctx.fillStyle=i%2?pale:green;ctx.fillRect(x,0,w,512);
+    if(i%2===0){ctx.fillStyle='rgba(233,228,214,.42)';for(let y=26;y<512;y+=74)ctx.fillRect(x+18,y,w-36,9);}
+    x+=w;i++;}
+  }else{
+   ctx.fillStyle='#c9c5bf';ctx.fillRect(0,0,512,512);
+   for(let i=0;i<512;i+=3){ctx.strokeStyle=i%2?'#a9a59044':'#f4efd455';ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,512);ctx.moveTo(0,i);ctx.lineTo(512,i);ctx.stroke();}
+  }
   const t=new T.CanvasTexture(canvas);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=T.SRGBColorSpace;return t;
  }
- const timber=new T.MeshStandardMaterial({map:texture('wood'),roughness:.78});const rugMaterial=new T.MeshStandardMaterial({map:texture('fabric'),roughness:1});
+ const timber=new T.MeshStandardMaterial({map:texture('wood'),roughness:.72});
+ const rugMaterial=new T.MeshStandardMaterial({map:texture('fabric'),roughness:1});
+ const rugStripe=new T.MeshStandardMaterial({map:texture('stripe'),roughness:1});
  function floor(x,z,w,d,type='wood'){
-  box(home,x+w/2,-.18,z+d/2,w,.34,d,mat('#d0c8b8'),.025);box(home,x+w/2,.005,z+d/2,w,.03,d,type==='wood'?timber:mat(type==='bath'?'#adb8af':'#ded9cc'));
-  if(type!=='wood'){for(let a=.6;a<w;a+=.6)box(home,x+a,.022,z+d/2,.007,.002,d,mat('#c4c4b8'));for(let a=.6;a<d;a+=.6)box(home,x+w/2,.022,z+a,w,.002,.007,mat('#c4c4b8'));}
+  box(home,x+w/2,-.18,z+d/2,w,.34,d,mat('#d0c8b8'),.025);box(home,x+w/2,.005,z+d/2,w,.03,d,type==='wood'?timber:mat(type==='bath'?'#e2ded4':'#5c6162'));
+  if(type!=='wood'){for(let a=.6;a<w;a+=.6)box(home,x+a,.022,z+d/2,.007,.002,d,mat(type==='bath'?'#cfc9be':'#4a4f50'));for(let a=.6;a<d;a+=.6)box(home,x+w/2,.022,z+a,w,.002,.007,mat(type==='bath'?'#cfc9be':'#4a4f50'));}
  }
-// 以户型图北向为 -Z，各房间地面独立，保留不规则外轮廓。矩形同时是家具的可行走边界。
+// 地面与墙体全部按如视 VR 实测数据生成（见 layout.js）。房间地面矩形就是墙中线围出的
+// 轮廓，相邻房间严丝合缝；墙体是 39 段 12 厘米厚的中线墙，门洞、窗洞的位置、宽度、
+// 窗台高与过梁高都取实测值，不再逐个手写坐标，也不再需要门洞处的补地缝。
 for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
+// 把洞口按所属墙线归位。洞口数据只记了中心与走向，用「同走向 + 横向坐标吻合 +
+// 中心落在本段内」筛出来，再换算成沿墙的距离。
+function openingsOf(x1,z1,x2,z2){
+ const dx=x2-x1,dz=z2-z1,length=Math.hypot(dx,dz),ux=dx/length,uz=dz/length;
+ const axis=Math.abs(dx)>=Math.abs(dz)?'x':'z';
+ return {length,items:OPENINGS.filter(o=>o.axis===axis&&(axis==='x'?Math.abs(o.cz-z1):Math.abs(o.cx-x1))<.03)
+  .map(o=>({...o,t:(o.cx-x1)*ux+(o.cz-z1)*uz}))
+  .filter(o=>o.t>-.1&&o.t<length+.1)
+  .sort((a,b)=>a.t-b.t)};
+}
+// 门扇开启方式：hinge 指铰链在哪一端（a=沿墙方向的小端、b=大端），nz 是开向墙法向的哪一侧
+// （+1 为组内 +z 侧），angle 为开启角。参照效果图里每樘门都画成半开，这里按「往房间里开、
+// 铰链侧让出通行宽度」的常规做法落位——铰链侧与开启角度是设计示意，不是实测值。
+const doorSwing={
+ 'u-zDlW7cmtpya7j4':{hinge:'a',nz:1,angle:95},    // 入户门：铰链在西，向室内开，贴玄关西墙
+ 'u-179Q4kMTPyabL6':{hinge:'a',nz:1},             // 玄关与过道之间，往过道开
+ 'u-OfegM4kp8I6voC':{hinge:'b',nz:-1},            // 卧 A：往北开进卧室
+ 'u-CyZox0kp8I75Mu':{hinge:'b',nz:-1},            // 卫生间：往北开，铰链在东侧让开洗手台
+ 'u-ssaMtxkP8I6YOZ':{hinge:'b',nz:1},             // 卧 B：往南开进卧室
+ 'u-WF4N16KP8i6X1b':{hinge:'b',nz:1},             // 卧 C：往南开进卧室
+ 'u-p4971IKp8i70r2':{hinge:'a',nz:-1},            // 储物间：往西开进储物间
+ // 厨房那樘门（u-MmaJs6Kp8i7dXu）随厨房南墙一起拆掉了，改成开放式厨房，故不再列在这里。
+};
  const walls=[];
- function wall(x1,z1,x2,z2,window=false){const length=Math.hypot(x2-x1,z2-z1);const group=new T.Group();group.position.set((x1+x2)/2,0,(z1+z2)/2);group.rotation.y=-Math.atan2(z2-z1,x2-x1);home.add(group);
-  const wm=mat('#e5e0d4').clone();wm.transparent=true;const pieces=[];
-  box(group,0,.095,0,length,.19,plan.wall,cream);pieces.push(box(group,0,window?.59:1.42,0,length,window?.8:2.45,plan.wall,wm));pieces.push(box(group,0,2.66,0,length,.055,plan.wall+.02,wm));
-  if(window){for(const x of [-length/2+.04,0,length/2-.04])pieces.push(box(group,x,1.82,0,.035,1.64,.06,wm));pieces.push(box(group,0,1.02,0,length,.055,.19,wm));const glass=new T.MeshStandardMaterial({color:'#a7c5be',roughness:.08,transparent:true,opacity:.12,depthWrite:false});pieces.push(box(group,0,1.82,0,length-.12,1.57,.02,glass));}
-  const bounds=new T.Box3().setFromObject(group);walls.push({group,wm,pieces,bounds,target:1});
+ function wall(x1,z1,x2,z2){
+  const {length,items}=openingsOf(x1,z1,x2,z2);
+  const group=new T.Group();group.position.set((x1+x2)/2,0,(z1+z2)/2);group.rotation.y=-Math.atan2(z2-z1,x2-x1);home.add(group);
+  const wm=mat('#f2f1ed').clone();wm.transparent=true;const pieces=[];
+  const TH=WALL_THICKNESS,BASE=.195,TOP=2.645;   // 墙厚 / 墙身上沿、下沿，下面 .195 让给墙脚
+  // 注意别把墙厚命名成 T：外层是 `import * as T from 'three'`，函数里再 const T 会遮蔽它，
+  // 而本函数开头就要用 T.Group / T.Box3，直接踩 TDZ（构建后报 “Cannot access 'N' before initialization”）。
+  const L=t=>t-length/2;                        // 沿墙距离 → 组内局部坐标
+  // 墙脚整段拉通（含洞口下方），对应墙身的实心段则按洞口切分。
+  box(group,0,.095,0,length,.19,.13,cream);
+  const solid=(a,b)=>{if(b-a<.004)return;pieces.push(box(group,L((a+b)/2),(BASE+TOP)/2,0,b-a,TOP-BASE,TH,wm));};
+  let cursor=0;
+  for(const o of items){
+   const a=o.t-o.len/2,b=o.t+o.len/2;
+   solid(cursor,a);                                   // 洞口之前的实心墙
+   if(o.head<TOP-.004)pieces.push(box(group,L((a+b)/2),(o.head+TOP)/2,0,b-a,TOP-o.head,TH,wm));   // 过梁
+   if(o.sill>BASE+.004)pieces.push(box(group,L((a+b)/2),(BASE+o.sill)/2,0,b-a,o.sill-BASE,TH,wm)); // 窗下墙
+   cursor=Math.max(cursor,b);
+  }
+  solid(cursor,length);
+  pieces.push(box(group,0,2.66,0,length,.055,.15,wm));
+  // 窗与阳台推拉门补玻璃、窗台板和竖梃。
+  const glass=new T.MeshStandardMaterial({color:'#a7c5be',roughness:.08,transparent:true,opacity:.12,depthWrite:false});
+  for(const o of items){
+   if(o.kind==='door'||o.kind==='entry')continue;
+   const a=o.t-o.len/2,b=o.t+o.len/2,mid=(o.sill+o.head)/2,h=o.head-o.sill;
+   pieces.push(box(group,L((a+b)/2),o.sill-.025,0,o.len,.05,.19,wm));
+   pieces.push(box(group,L((a+b)/2),mid,0,o.len-.06,h-.06,.02,glass));
+   for(const f of [.03,.5,.97])pieces.push(box(group,L(a+o.len*f),mid,0,.04,h,.06,wm));
+  }
+  // 门扇：铰链处起一个 pivot，绕 Y 转出开启角。门的材质单独一份、跟墙身同步渐隐，
+  // 否则切到俯视时墙已经淡出、门扇还孤零零立着。
+  const dm=mat('#5a2e1e',.5,.05).clone();dm.transparent=true;
+  for(const o of items){
+   if(o.kind!=='door'&&o.kind!=='entry')continue;
+   const spec=doorSwing[o.id]||{hinge:'a',nz:1,angle:75};
+   const a=o.t-o.len/2,b=o.t+o.len/2,hingeAt=spec.hinge==='b'?b:a,side=spec.hinge==='b'?-1:1;
+   const pivot=new T.Group();pivot.position.set(L(hingeAt),0,0);
+   // 叶片沿 pivot 的 ±x 伸出：局部 +x 绕 Y 转 θ 后指向 −z，所以开向 +z 要取负角。
+   pivot.rotation.y=-side*spec.nz*(spec.angle||75)*Math.PI/180;
+   group.add(pivot);
+   const leafW=o.len-.04,h=o.head-.04;
+   pieces.push(box(pivot,side*leafW/2,h/2+.01,0,leafW,h,.045,dm,.006));
+   for(const z of [-.032,.032])pieces.push(box(pivot,side*leafW*.82,1.02,z,.026,.026,.026,brass,.008));
+  }
+  const bounds=new T.Box3().setFromObject(group);walls.push({group,wm,dm,pieces,bounds,target:1});
  }
- for(const segment of wallSegments)wall(...segment);
- // 门洞保留完整净宽；门扇打开到 90°，门框和门扇随墙体一起避让。
- for(const [id,d] of Object.entries(doorways)){
-  const frame=new T.Group();frame.position.set(d.x,0,d.z);home.add(frame);
-  if(d.vertical)frame.rotation.y=-Math.PI/2;
-  const dm=mat('#b59873').clone();dm.transparent=true;const pieces=[];
-  for(const x of [0,d.w])pieces.push(box(frame,x,1.08,0,.045,2.16,.16,dm,.008));
-  pieces.push(box(frame,d.w/2,2.18,0,d.w+.045,.06,.16,dm,.008));
-  const leaf=new T.Group();leaf.position.x=d.w;frame.add(leaf);
-  leaf.rotation.y=['a','bath','entryHall'].includes(id)?-Math.PI/2:Math.PI/2;
-  pieces.push(box(leaf,-d.w/2,1.06,0,d.w-.035,2.1,.035,dm,.008));
-  walls.push({group:frame,wm:dm,pieces,bounds:new T.Box3().setFromObject(frame),target:1});
- }
- // 保留开放式厨房；岛台与东侧工作台拼成 L 形，西侧留出通道。
- box(home,8.8315,.45,2.432,1.263,.88,.54,sage,.025);
- box(home,8.4565,.91,2.432,.593,.06,.7,white,.025);
- box(home,9.108,.91,2.631,.71,.06,.302,white,.025);
- for(const x of [-.31,.31])box(home,8.8315+x,.56,2.709,.34,.018,.02,brass);
- box(home,7.738,.03,8.464,3.45,.04,.065,brass);
+ // 实测墙线 39 段，位置与长度直接来自 VR 数据；其中被装修方案拆掉的（厨房南墙等）见 state.js 的
+// REMOVED_WALLS，这里统一跳过，门洞随墙一起消失。
+for(const [x1,z1,x2,z2] of WALLS)if(!isWallRemoved(x1,z1,x2,z2))wall(x1,z1,x2,z2);
+
  // 地毯是贴地薄片，一旦并入床组或沙发组，包围盒会被撑到 2.7 米以上，在卧室里再也转不开，故作为固定装饰。
- function rug(x,z,w,d){box(home,x,.04,z,w,.035,d,rugMaterial,.04);}
- rug(1.6,6.8,2.7,2.8);rug(7.8,6.63,2.5,2.82);
+ function rug(x,z,w,d,material){box(home,x,.04,z,w,.035,d,material,.04);}
+rug(1.83,7.53,2.7,2.8,rugMaterial);rug(7.93,7.33,2.5,2.82,rugStripe);
  function plant(parent,x,z,height=1){cylinder(parent,x,.18,z,.15,.11,.36,mat('#baa78d'));for(let i=0;i<8;i++){const a=i*2.4;const stem=cylinder(parent,x,.4+height*.2,z,.01,.012,height*.65,wood);stem.rotation.z=Math.sin(a)*.2;const leaf=ball(parent,x+Math.sin(a)*.16,.44+height*(.25+i*.045),z+Math.cos(a)*.17,.17,mat(i%2?'#657b52':'#81916b'),[.65,1.65,.7]);leaf.rotation.z=Math.sin(a)*.6;}}
  function bed(parent,x,z,w,color,length=2.02){const group=new T.Group();group.position.set(x,0,z);parent.add(group);box(group,0,.22,0,w,.32,length+.01,wood,.06);box(group,0,.46,0,w,.25,length,white,.075);box(group,0,.57,-.3*length/2.02,w+.06,.16,1.4*length/2.02,mat(color),.065);box(group,0,.77,length/2-.01,w+.1,1.12,.16,fabric,.06);
   for(const px of [-w*.25,w*.25])box(group,px,.65,length/2-.32,w*.42,.17,.43,white,.075);for(let i=0;i<7;i++)box(group,-w/2+.06+i*(w-.12)/6,.656,-.38*length/2.02,.014,.006,.9*length/2.02,mat(color),.003);
  }
- function wardrobe(parent,x,z,w,d){box(parent,x,1.1,z,w,2.16,d,cream,.025);for(let i=-w/2+.43;i<w/2;i+=.48){box(parent,x+i,1.1,z+d/2+.006,.009,2.04,.009,mat('#c5bcaa'));box(parent,x+i-.065,1.06,z+d/2+.03,.02,.29,.027,brass);}}
+ function wardrobe(parent,x,z,w,d){box(parent,x,1.1,z,w,2.16,d,walnut,.025);for(let i=-w/2+.43;i<w/2;i+=.48){box(parent,x+i,1.1,z+d/2+.006,.009,2.04,.009,mat('#4c2818'));box(parent,x+i-.065,1.06,z+d/2+.03,.02,.29,.027,brass);}}
  // 家具按件分组：每组是一个整体，可一起移动和旋转，组内一律用相对锚点的局部坐标。
  // 名称、房间、可旋转性与锚点都取自 state.js 的 furnitureDefaults()，这里只负责造型，
  // 免得默认摆位在两边各写一份、日后必然走样。
@@ -89,7 +160,9 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
  furnishing('wardrobe-a',g=>wardrobe(g,0,0,1,.5));
  // 柜体与门洞共用同一组尺寸，两侧预留 5 厘米，门扇可以完全打开。
  function northWardrobe(g,id,overhead=false){
-  const r=slabs.find(s=>s.room===id),d=doorways[id],anchor=layout.get(`wardrobe-${id}`);
+  const [x,,w]=ROOMS.find(r=>r.id===id).extent;
+  const opening=OPENINGS.find(o=>o.id===({b:'u-ssaMtxkP8I6YOZ',c:'u-WF4N16KP8i6X1b'})[id]);
+  const r={x:x+WALL_THICKNESS/2,w:w-WALL_THICKNESS},d={x:opening.cx-opening.len/2,w:opening.len},anchor=layout.get(`wardrobe-${id}`);
   for(const [left,right] of [[r.x,d.x-.05],[d.x+d.w+.05,r.x+r.w]]){
    if(right-left>=.18)wardrobe(g,(left+right)/2-anchor.x,0,right-left,.6);
   }
@@ -97,6 +170,16 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
  }
  furnishing('wardrobe-b',g=>northWardrobe(g,'b',true));
  furnishing('wardrobe-c',g=>northWardrobe(g,'c'));
+// 入户玄关：实测全景里门厅西侧是一排白色矮柜，柜面放钥匙盘。深度 0.32 让出过道净宽，
+// rot 270 表示柜门朝西（面向室内），柜背贴着厨房那面墙。
+furnishing('hall-cabinet',g=>{
+ const body=mat('#fbfaf5',.85),face=mat('#e6e3d8',.8);
+ box(g,0,.52,0,.90,1.04,.32,body,.02);
+ box(g,0,.10,0,.86,.02,.28,face,.01);
+ for(const x of [-.30,0,.30]){box(g,x,.17,-.158,.24,.012,.012,brass);box(g,x,.78,-.158,.24,.012,.012,brass);}
+ box(g,0,.86,-.02,.86,.012,.26,mat('#d9d5c8',.7));
+ cylinder(g,-.24,1.10,0,.09,.075,.09,mat('#cfd6cd',.5));
+});
  // 储物间按布局图改作电竞房：西南自行车柜、西北衣柜、东北电竞桌椅。
  // 衣柜贴着西墙，柜门要朝东开，所以套一层绕 Y 转 90 度的子组——wardrobe() 的柜门固定开在 +z 面。
  furnishing('wardrobe-s',g=>{const door=new T.Group();door.rotation.y=Math.PI/2;g.add(door);wardrobe(door,0,0,.92,.40);});
@@ -119,40 +202,85 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
   box(bike,0,.45,-.29,.05,.03,.26,tyre,.012);                                        // 坐垫
   const bar=cylinder(bike,0,.30,.42,.016,.016,.34,tyre);bar.rotation.z=Math.PI/2;    // 车把（横出车身平面）
  });
+ // 电竞桌椅贴着北墙放：显示器收进桌板内侧，否则桌一贴墙、屏就扎进墙里。
  furnishing('desk-gaming',g=>{
   const steel=mat('#4a5350',.4,.4),dark=mat('#2b2f30',.5,.2);
   box(g,0,.72,0,1.36,.045,.75,mat('#3a4340',.5,.15),.02);                            // 桌面 1.36×0.75
   for(const x of [-.62,.62])for(const z of [-.30,.30])box(g,x,.36,z,.05,.72,.05,steel);
   box(g,0,.10,0,1.20,.03,.06,steel);
   for(const x of [-.30,.30])for(const z of [-.28,.28])box(g,x,.02,z,.09,.05,.09,dark);
-  box(g,.10,.79,-.52,.11,.16,.09,dark);box(g,.10,.90,-.52,.05,.32,.05,dark);box(g,.10,1.12,-.52,.62,.36,.02,mat('#1c2422',.4));   // 显示器
-  box(g,.10,.752,-.20,.46,.02,.15,dark,.01);                                         // 键盘
-  const chair=new T.Group();chair.position.set(.16,0,.39);g.add(chair);              // 主位椅子，落在 x≈1.35
+  box(g,0,.79,-.30,.11,.16,.09,dark);box(g,0,.90,-.30,.05,.32,.05,dark);box(g,0,1.12,-.30,.62,.36,.02,mat('#1c2422',.4));   // 显示器
+  box(g,0,.752,.02,.46,.02,.15,dark,.01);                                            // 键盘
+  const chair=new T.Group();chair.position.set(.16,0,.50);g.add(chair);              // 主位椅子
   for(let i=0;i<5;i++){const a=i*1.2566;const arm=box(chair,Math.sin(a)*.16,.05,Math.cos(a)*.16,.05,.03,.30,dark,.012);arm.rotation.y=-a;}
   cylinder(chair,0,.25,0,.035,.035,.34,mat('#5a6360',.4,.5));
   box(chair,0,.45,0,.48,.09,.46,mat('#3a4340',.6),.04);                              // 坐垫
   box(chair,0,.78,.24,.44,.66,.09,mat('#3a4340',.6),.045);                           // 靠背朝南，人面向北边的桌子
   for(const x of [-.25,.25])box(chair,x,.60,0,.05,.16,.04,dark);
  });
- // 客厅软装，沙发靠东墙，电视面向沙发。
+ // 客厅软装：深炭灰沙发贴东墙，白色圆茶几配木色圆边几，橄榄绿单人椅在地毯南端。
  furnishing('sofa',g=>{
-  box(g,-.01,.23,0,.86,.3,2.68,wood,.07);box(g,.33,.66,0,.2,.83,2.73,fabric,.08);
-  for(const z of [-.89,0,.89]){box(g,-.08,.45,z,.7,.24,.86,cream,.08);box(g,.2,.79,z,.23,.57,.78,cream,.07);}
-  for(const z of [-1.37,1.37])box(g,-.01,.53,z,.9,.55,.2,fabric,.065);
-  for(const [z,color] of [[-.96,'#7d8d72'],[.08,'#c2a581'],[.82,'#eee6d5']]){const cushion=box(g,-.09,.74,z,.21,.4,.44,mat(color),.055);cushion.rotation.z=.25;cushion.rotation.x=.14;}
+  box(g,-.01,.23,0,.86,.3,2.68,walnut,.07);box(g,.33,.66,0,.2,.83,2.73,sofa,.08);
+  for(const z of [-.89,0,.89]){box(g,-.08,.45,z,.7,.24,.86,sofa,.08);box(g,.2,.79,z,.23,.57,.78,sofa,.07);}
+  for(const z of [-1.37,1.37])box(g,-.01,.53,z,.9,.55,.2,sofa,.065);
+  for(const [z,color] of [[-.96,'#7f8a63'],[.08,'#f0ece2'],[.82,'#cec8ba']]){const cushion=box(g,-.09,.74,z,.21,.4,.44,mat(color),.055);cushion.rotation.z=.25;cushion.rotation.x=.14;}
  });
- furnishing('coffee',g=>{box(g,0,.37,.01,.92,.115,1.36,wood,.1);for(const z of [-.47,.44])cylinder(g,0,.18,z,.19,.23,.33,dark);
-  box(g,.02,.447,.34,.3,.027,.35,cream);box(g,.05,.468,.34,.29,.018,.32,sage);cylinder(g,-.02,.53,-.32,.11,.075,.19,mat('#6e6351'));ball(g,-.02,.65,-.32,.15,sage,[1,.35,1]);});
- furnishing('tv-unit',g=>{box(g,0,.29,0,.43,.48,2.42,wood,.045);for(const z of [-.83,0,.83])box(g,.224,.33,z,.008,.01,.65,brass);});
+ furnishing('coffee',g=>{cylinder(g,0,.40,0,.43,.43,.07,white);cylinder(g,0,.19,0,.055,.055,.36,mat('#3f4442',.5,.3));
+  // 木色圆边几，落在茶几西南侧
+  cylinder(g,-.12,.27,.62,.21,.21,.05,walnut);cylinder(g,-.12,.13,.62,.19,.19,.27,mat('#5f3624',.7));
+  // 茶几上那盆小绿植
+  cylinder(g,.04,.445,.02,.075,.06,.11,mat('#cfc8ba'));
+  for(let i=0;i<6;i++){const a=i*1.05;ball(g,.04+Math.cos(a)*.085,.575,.02+Math.sin(a)*.085,.075,mat(i%2?'#6f7f57':'#81916b'),[.7,1.5,.7]);}});
+ furnishing('tv-unit',g=>{box(g,0,.29,0,.43,.48,2.42,walnut,.045);for(const z of [-.83,0,.83])box(g,.224,.33,z,.008,.01,.65,brass);
+  // 参照图里客厅西墙这条长柜就是绿植柜：电视两侧各摆一盆，柜前地上一盆。
+  for(const z of [-1.02,1.02]){cylinder(g,0,.585,z,.09,.07,.13,mat('#cfc8ba'));
+   for(let i=0;i<6;i++){const a=i*1.05;ball(g,Math.cos(a)*.1,.72,z+Math.sin(a)*.1,.085,mat(i%2?'#6f7f57':'#81916b'),[.7,1.5,.7]);}}
+ });
  furnishing('dining',g=>{cylinder(g,0,.76,-.44,.64,.64,.08,wood);cylinder(g,0,.39,-.44,.16,.3,.72,dark);cylinder(g,0,.87,-.44,.085,.065,.18,cream);
   for(const [x,z,rotation] of [[-.88,-.44,-Math.PI/2],[.88,-.44,Math.PI/2],[0,.44,0]]){const chair=new T.Group();chair.position.set(x,0,z);chair.rotation.y=rotation;g.add(chair);box(chair,0,.43,0,.47,.12,.45,sage,.065);box(chair,0,.66,.21,.47,.48,.08,sage,.04);for(const dx of [-.16,.16])for(const dz of [-.15,.15])box(chair,dx,.2,dz,.035,.4,.035,wood);}});
+// 单人椅：参照图里地毯南端那把橄榄绿扶手椅，靠背朝南、面向茶几。
+furnishing('armchair',g=>{const green=mat('#66724a',.92);
+ box(g,0,.19,0,.78,.38,.72,green,.07);box(g,0,.60,.28,.74,.72,.16,green,.07);
+ for(const x of [-.34,.34])box(g,x,.42,0,.10,.30,.70,green,.06);
+ box(g,0,.40,-.06,.56,.10,.50,green,.05);
+ const cushion=box(g,0,.58,.14,.40,.34,.10,mat('#76805a'),.05);cushion.rotation.x=-.18;});
+// 圆壳椅：参照图里地毯北端那把奶油色桶形椅，壳口环抱、内衬绿坐垫，面朝南边的茶几。
+// 半环靠背用 TorusGeometry 的 PI 段：绕 X 转 -90° 后正好扣在 -z 一侧，也就是椅背朝北。
+function podChair(g,shell,pad){
+ const c=mat(shell,.95);
+ cylinder(g,0,.20,0,.40,.36,.40,c);
+ cylinder(g,0,.43,0,.40,.40,.05,c);
+ cylinder(g,0,.35,0,.29,.29,.09,mat(pad,.95));
+ const back=new T.Mesh(new T.TorusGeometry(.37,.085,10,26,Math.PI),c);
+ back.rotation.x=-Math.PI/2;back.position.set(0,.53,.06);back.castShadow=true;g.add(back);
+}
+furnishing('armchair-n',g=>podChair(g,'#e6dfd0','#7f8a63'));
  furnishing('plants-l',g=>plant(g,0,0,1.1));
  furnishing('plants-bal',g=>plant(g,0,0,.8));
- // 厨房柜体、工作台、水槽和卫生间。
  furnishing('kitchen-counter',g=>{box(g,.02,.45,0,.63,.88,2.33,sage,.025);box(g,0,.91,0,.71,.06,2.36,white,.025);for(const z of [-.85,-.01,.78])box(g,-.303,.56,z,.02,.018,.34,brass);
   box(g,-.04,.945,.77,.46,.016,.47,mat('#89988f',.26,.65),.04);box(g,-.04,.952,.77,.35,.018,.35,dark,.03);cylinder(g,.17,1.07,.77,.022,.022,.24,brass);box(g,.13,1.19,.77,.1,.035,.04,brass,.01);});
- furnishing('bath-fixtures',g=>{box(g,-.47,.42,-.61,.5,.76,.38,white,.06);cylinder(g,-.47,.27,-.13,.18,.21,.5,white);ball(g,-.47,.52,-.09,.28,white,[.88,.3,1.32]);
-  box(g,.46,.7,.5,.51,.12,.46,white,.08);box(g,.5,1.44,.79,.43,.68,.03,mat('#a5beb2',.12,.88),.04);});
+ // 岛台沿原厨房南墙布置，与东侧工作台组成 L 形，西侧保留通道。
+ box(home,8.9716,.45,3.0304,1.263,.88,.54,sage,.025);
+ box(home,8.5966,.91,3.0304,.593,.06,.7,white,.025);
+ box(home,9.2481,.91,3.2294,.71,.06,.302,white,.025);
+ for(const x of [-.31,.31])box(home,8.9716+x,.56,3.3074,.34,.018,.02,brass);
+ // 卫生间：北端淋浴区（顶喷 + 东半侧固定玻璃），西墙木柜洗手台带镜子，东侧马桶。
+ // 参照图里进门正对淋浴、右手边是马桶、左手边是洗手台。
+ furnishing('bath-fixtures',g=>{
+  const porcelain=mat('#f8f7f4',.22),chrome=mat('#c3c7c6',.2,.85),stone=mat('#e3dfd7',.55);
+  const glass=new T.MeshStandardMaterial({color:'#bcd2cd',roughness:.08,transparent:true,opacity:.22,depthWrite:false});
+  box(g,-.05,.025,-.57,1.08,.025,.78,stone,.012);                          // 淋浴地台
+  for(const z of [-.86,-.66,-.46,-.26])box(g,-.05,.04,z,1.00,.006,.012,mat('#c9c5bb',.7));
+  box(g,.36,1.02,-.245,.48,1.92,.03,glass,.004);                           // 固定玻璃（留出西半侧进出）
+  cylinder(g,-.25,2.12,-.78,.13,.13,.028,chrome);                          // 顶喷与立管
+  cylinder(g,-.25,1.60,-.86,.018,.018,1.04,chrome);
+  box(g,-.49,.40,.44,.50,.76,.78,walnut,.02);box(g,-.49,.81,.44,.54,.05,.82,white,.02);   // 洗手台
+  ball(g,-.49,.855,.44,.20,mat('#fbfaf7',.2),[.85,.30,1.15]);
+  cylinder(g,-.49,.94,.14,.018,.018,.20,chrome);box(g,-.41,.99,.14,.14,.02,.02,chrome,.005);
+  box(g,-.72,1.34,.44,.02,.60,.74,mat('#cfd6d3',.15,.6),.01);              // 镜子
+  box(g,.60,.42,.10,.18,.62,.50,porcelain,.04);                            // 马桶：水箱贴东墙
+  cylinder(g,.34,.20,.10,.21,.24,.40,porcelain);ball(g,.34,.50,.10,.26,porcelain,[.86,.28,1.25]);
+ });
  const visuals=new Map(),clickable=[];let devices=initialDevices;
  for(const d of devices){
   // 台灯、电视、电磁灶挂在对应家具上，由场景图的父子变换带动旋转，无需手工换算偏移。
@@ -173,7 +301,7 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
   }else if(d.type==='washer'){
    box(group,0,0,0,.67,.88,.63,white,.04);const door=cylinder(group,0,-.03,.335,.237,.237,.055,black);door.rotation.x=Math.PI/2;rotor=new T.Group();rotor.position.set(0,-.03,.371);group.add(rotor);const drum=cylinder(rotor,0,0,0,.18,.18,.02,mat('#6e8983',.15,.65));drum.rotation.x=Math.PI/2;for(let i=0;i<3;i++){const fin=box(rotor,Math.cos(i*2.094)*.07,Math.sin(i*2.094)*.07,.015,.025,.14,.012,mat('#c0ccc3',.3,.5),.008);fin.rotation.z=i*2.094;}box(group,-.17,.32,.329,.12,.05,.013,dark);ball(group,.2,.32,.34,.04,brass);
   }else if(d.type==='hood'){
-   box(group,0,0,0,.52,.14,.68,mat('#7c8a83',.3,.6),.025);box(group,.08,.26,0,.32,.48,.34,dark,.015);
+   box(group,0,0,0,.52,.14,.68,steel,.025);box(group,.08,.26,0,.32,.48,.34,dark,.015);
   }else if(d.type==='stove'){
    box(group,0,0,0,.52,.025,.67,black,.015);glow=[];for(const z of [-.17,.17]){const ring=new T.Mesh(new T.TorusGeometry(.12,.008,8,28),brass.clone());ring.rotation.x=-Math.PI/2;ring.position.set(0,.025,z);group.add(ring);glow.push(ring);}
   }else if(d.type==='heater'){
@@ -191,7 +319,7 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
  // 从默认机位看储物间时，桌椅组的空盒子会挡住后面的衣柜，点衣柜反而选中桌子。
  // 多盏聚光灯的 ShadowMaterial 会把光锥外区域也计为阴影；底座仅使用柔和接触影。
  const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=128;const shadowContext=shadowCanvas.getContext('2d');const shadowGradient=shadowContext.createRadialGradient(64,64,20,64,64,64);shadowGradient.addColorStop(0,'rgba(48,55,39,.2)');shadowGradient.addColorStop(.6,'rgba(48,55,39,.11)');shadowGradient.addColorStop(1,'rgba(48,55,39,0)');shadowContext.fillStyle=shadowGradient;shadowContext.fillRect(0,0,128,128);
- const ground=new T.Mesh(new T.PlaneGeometry(16,16),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));ground.rotation.x=-Math.PI/2;ground.position.set(4.73,-.36,4.88);scene.add(ground);
+ const ground=new T.Mesh(new T.PlaneGeometry(18,18),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));ground.rotation.x=-Math.PI/2;ground.position.set(4.88,-.36,5.52);scene.add(ground);
  const ring=new T.Mesh(new T.RingGeometry(.31,.335,60),new T.MeshBasicMaterial({color:'#b9944f',transparent:true,opacity:.95,side:T.DoubleSide,depthTest:false}));ring.rotation.x=-Math.PI/2;ring.visible=false;ring.renderOrder=10;scene.add(ring);
  // 布置模式的选中环与旋转手柄。手柄位于家具正北方向的环上，拖动它即绕锚点旋转。
  const halo=new T.Mesh(new T.RingGeometry(.42,.455,72),new T.MeshBasicMaterial({color:'#b9944f',transparent:true,opacity:.9,side:T.DoubleSide,depthTest:false}));halo.rotation.x=-Math.PI/2;halo.renderOrder=11;halo.visible=false;scene.add(halo);
@@ -199,7 +327,7 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
  const gripHit=new T.Mesh(new T.SphereGeometry(.2,8,6),new T.MeshBasicMaterial({visible:false}));grip.add(gripHit);
  let night=false,wallMode='auto',selected=null,tween=null,down=null,lastTime=0,wallCounter=0,view='all';
  let layoutMode=false,focusFurniture=null,drag=null,rotDrag=null,wallDirty=true;
- const overviewPosition=()=>new T.Vector3(4.73,.1,4.88).add(new T.Vector3(7.5,13.6,13.1).multiplyScalar(Math.max(1,1.15/camera.aspect)));
+ const overviewPosition=()=>new T.Vector3(4.88,.1,5.52).add(new T.Vector3(8,14.5,14).multiplyScalar(Math.max(1,1.15/camera.aspect)));
  const pickRay=new T.Raycaster(),pointer=new T.Vector2(),dragPlane=new T.Plane(new T.Vector3(0,1,0),0),planeHit=new T.Vector3();
  const idleCursor=()=>layoutMode?'default':'grab';
  function aim(e){const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);pickRay.setFromCamera(pointer,camera);}
@@ -273,7 +401,7 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
   }}
  function focus(id){view=id;const r=rooms.find(r=>r.id===id)||rooms[0];tween={target:new T.Vector3(r.x,.1,r.z),position:id==='all'?overviewPosition():new T.Vector3(r.x+3.3,7.5,r.z+5.3)};}
  function select(id){selected=id;focusFurniture=null;syncFurniture();onFurniture?.(null);const d=devices.find(d=>d.id===id);ring.visible=!!d;if(d)ring.position.set(d.x,.06,d.z);}
- const observer=new ResizeObserver(()=>{const {width,height}=container.getBoundingClientRect();if(width&&height){camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);if(view==='all'){camera.position.copy(overviewPosition());controls.target.set(4.73,.1,4.88);tween=null;}}});observer.observe(container);update(devices);
+ const observer=new ResizeObserver(()=>{const {width,height}=container.getBoundingClientRect();if(width&&height){camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);if(view==='all'){camera.position.copy(overviewPosition());controls.target.set(4.88,.1,5.52);tween=null;}}});observer.observe(container);update(devices);
  const wallRay=new T.Ray(),direction=new T.Vector3(),point=new T.Vector3(),worldPos=new T.Vector3(),targets=[];
  // 墙体遮挡的判定点：房间四角、每台设备、每件家具。物体一旦移动就必须重建，
  // 否则判定点停在初始位置，会让已经不再遮挡视线的墙体继续渐隐。
@@ -289,7 +417,9 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
   hemi.intensity=T.MathUtils.lerp(hemi.intensity,night?.13:1.1,ease);sun.intensity=T.MathUtils.lerp(sun.intensity,night?.04:2.3,ease);scene.environmentIntensity=T.MathUtils.lerp(scene.environmentIntensity,night?.06:.3,ease);
   if(wallDirty)rebuildTargets();
   if(wallCounter++%6===0)for(const w of walls){const hide=wallMode==='low'||(wallMode==='auto'&&targets.some(t=>{direction.subVectors(t,camera.position);const dist=direction.length();wallRay.set(camera.position,direction.normalize());return wallRay.intersectBox(w.bounds,point)&&point.distanceTo(camera.position)<dist-.3;}));w.target=hide?.055:1;}
-  for(const w of walls){w.wm.opacity=T.MathUtils.lerp(w.wm.opacity,w.target,ease);w.wm.depthWrite=w.wm.opacity>.5;for(const p of w.pieces){p.castShadow=w.wm.opacity>.5;if(p.material!==w.wm)p.visible=w.wm.opacity>.5;}}
+  for(const w of walls){w.wm.opacity=T.MathUtils.lerp(w.wm.opacity,w.target,ease);w.wm.depthWrite=w.wm.opacity>.5;
+   w.dm.opacity=w.wm.opacity;w.dm.depthWrite=w.wm.opacity>.5;
+   for(const p of w.pieces){p.castShadow=w.wm.opacity>.5;if(p.material!==w.wm&&p.material!==w.dm)p.visible=w.wm.opacity>.5;}}
   for(const d of devices){const v=visuals.get(d.id);if(v.light){v.light.intensity=T.MathUtils.lerp(v.light.intensity,v.light.userData.intensity,ease);v.light.visible=v.light.intensity>.01;}if(v.rotor&&d.on&&d.running)v.rotor.rotation.z+=dt*3;}
   if(selected)ring.scale.setScalar(1+Math.sin(time*.002)*.025);
   if(halo.visible)halo.scale.setScalar(halo.userData.base*(1+Math.sin(time*.002)*.02));renderer.render(scene,camera);
@@ -307,7 +437,7 @@ for(const s of slabs)floor(s.x,s.z,s.w,s.d,s.type);
    for(let i=1;i<=6;i++)if(spinTo(f,f.group.rotation.y+step*i)){syncFurniture();onLayout?.();return true;}
    return false;},
   applyLayout(list){for(const spec of list){const f=furniture.find(x=>x.id===spec.id);if(!f)continue;f.group.position.set(spec.x,0,spec.z);f.group.rotation.y=spec.rot*Math.PI/180;}syncFurniture();onLayout?.();},
-  // 16 件家具的完整摆位，条数固定，无需比对默认值。
+  // 全部家具的完整摆位，条数固定，无需比对默认值。
   layoutState(){const items={};for(const f of furniture)items[f.id]={x:+f.group.position.x.toFixed(3),z:+f.group.position.z.toFixed(3),rot:+((f.group.rotation.y*180/Math.PI%360+360)%360).toFixed(1)};return {version:LAYOUT_VERSION,items};},
-  top(){tween={position:new T.Vector3(4.73,20,4.89),target:new T.Vector3(4.73,0,4.88)};},zoom(factor){tween=null;const offset=camera.position.clone().sub(controls.target);offset.setLength(T.MathUtils.clamp(offset.length()*factor,4,30));camera.position.copy(controls.target).add(offset);},stats(){return {drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,walls:walls.length,hiddenWalls:walls.filter(w=>w.target<1).length};},dispose(){observer.disconnect();renderer.setAnimationLoop(null);controls.dispose();environmentMap.dispose();scene.traverse(o=>{o.geometry?.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();}};
+  top(){tween={position:new T.Vector3(4.88,22,5.53),target:new T.Vector3(4.88,0,5.52)};},zoom(factor){tween=null;const offset=camera.position.clone().sub(controls.target);offset.setLength(T.MathUtils.clamp(offset.length()*factor,4,30));camera.position.copy(controls.target).add(offset);},stats(){return {drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,walls:walls.length,hiddenWalls:walls.filter(w=>w.target<1).length};},dispose(){observer.disconnect();renderer.setAnimationLoop(null);controls.dispose();environmentMap.dispose();scene.traverse(o=>{o.geometry?.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();}};
 }

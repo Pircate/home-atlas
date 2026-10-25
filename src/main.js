@@ -9,7 +9,7 @@ const refreshIcons=()=>createIcons({icons,attrs:{'stroke-width':1.5}});
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const roomIcons={all:'house',living:'armchair',b:'bed-double',c:'bed-double',a:'bed-double',kitchen:'cooking-pot',bath:'bath',storage:'package',balcony:'flower-2',entry:'footprints',hall:'footprints'};
 const typeIcons={light:'lightbulb',ac:'snowflake',tv:'tv',fridge:'refrigerator',washer:'washing-machine',hood:'wind',stove:'flame',heater:'flame',speaker:'speaker'};
-let devices=createDevices();try{devices=restore(devices,JSON.parse(localStorage.getItem('habitat-devices-v2')));}catch{}
+let devices=createDevices();try{devices=restore(devices,JSON.parse(localStorage.getItem('habitat-devices-v3')));}catch{}
 let layout=furnitureDefaults();try{layout=restoreLayout(JSON.parse(localStorage.getItem('habitat-layout-v1')));}catch{}
 const furnitureNames=new Map(furnitureDefaults().map(f=>[f.id,f.name]));
 const rotatableFurniture=new Set(furnitureDefaults().filter(f=>f.rotatable).map(f=>f.id));
@@ -17,7 +17,7 @@ let room='all',selected=null,night=false,walls='auto',filter='all',sceneName='',
 
 $('#app').innerHTML=`
  <aside class="sidebar"><a href="/" class="brand" aria-label="栖居首页"><span class="brand-symbol">${icon('house')}</span><span>栖居<small>HABITAT</small></span></a>
- <div class="home-title"><span class="eyebrow">MY SPACE / 01</span><h1>日常，自有光。</h1><p>三室一厅　图示面积约 ${rooms[0].area} m²</p></div>
+ <div class="home-title"><span class="eyebrow">MY SPACE / 01</span><h1>日常，自有光。</h1><p>三室一厅　净面积约 ${rooms[0].area} m²</p></div>
  <div class="section-label">我的房间 <span>${rooms.length-1}</span></div><nav id="rooms" aria-label="房间导航"></nav>
  <div class="sidebar-footer"><span class="dot"></span><div>本地交互演示<small>所有设备状态仅存储于此浏览器</small></div><span>V.01</span></div></aside>
  <main><header><div class="breadcrumbs">我的家 ${icon('chevron-right')} <strong id="breadcrumb">全屋视图</strong></div><div class="header-right"><span id="saved">${icon('check')} 已保存</span><button id="about" class="avatar" aria-label="模型说明">家</button></div></header>
@@ -36,7 +36,7 @@ $('#app').innerHTML=`
  <div class="summary"><div><span id="on-count" class="summary-value"></span><p>已开启设备</p></div><div><span id="power" class="summary-value"></span><p>模拟额定功率</p></div></div>
  <div class="list-heading"><h3 id="list-title">全屋设备</h3><span id="device-count"></span></div><div class="filter-tabs"><button data-filter="all" class="active">全部</button><button data-filter="light">灯光</button><button data-filter="appliance">家电</button></div><div id="device-list"></div><div class="device-bottom">${icon('lightbulb')} 点击灯具，试着点亮一个角落。</div></aside>
  <aside id="detail" class="detail-panel" aria-label="设备控制" hidden></aside><div id="toast" role="status"></div><div id="layout-say" class="sr-only" aria-live="polite" aria-atomic="true"></div>
- <dialog id="about-dialog"><button id="close-about" aria-label="关闭说明">${icon('x')}</button><span class="eyebrow">ABOUT THIS SPACE</span><h2>从一张户型图，到一个家。</h2><p>根据两张户型图校正房间、门窗及外轮廓，以第二张尺寸图为主。各空间标注面积合计约 72.7 m²；厨房保留开放式和岛台。</p><p>当前只有户型图，家具、家电配置和装修材质为设计示意，尚未根据实拍照片校准，也不能用作施工图。</p><p>所有设备均为本地模拟，未连接真实智能家居。显示功率为演示用额定估算，不能代表实际用电量。</p></dialog>`;
+ <dialog id="about-dialog"><button id="close-about" aria-label="关闭说明">${icon('x')}</button><span class="eyebrow">ABOUT THIS SPACE</span><h2>从一套实测户型，到一个家。</h2><p>户型取自同一套房源的如视（贝壳）VR 实测数据：9 个房间、39 段墙体、18 处门窗洞口，房间开间进深、墙体位置与窗洞宽度是点云拟合的原始值；门洞宽度、墙厚与层高则是算法统一给的模板值（多数门洞 0.80 米、墙厚一律 0.12 米、层高一律 2.7 米），做到定制家具或拆改那一步时仍需现场复核。各房间净面积合计 72.7 m²，不含墙体；按墙中线算则是 79.4 m²。</p><p>家具、家电配置和装修材质为设计示意，不能用作施工图。卧室 B、C 保留已确认的 2×1.8 米床、床头朝西且床侧贴南窗；卧室 A 保留 1.8×1.5 米床、床头朝西且床侧贴北窗。厨房保留开放式、L 形岛台与东侧工作台，储物间保留电竞桌椅、衣柜和自行车停车柜。</p><p>所有设备均为本地模拟，未连接真实智能家居。显示功率为演示用额定估算，不能代表实际用电量。</p></dialog>`;
 
 let home;
 try{home=createHome($('#canvas'),devices,layout,{onSelect:selectDevice,onFurniture:focusFurniture,onLayout:persistLayout});}catch(error){console.error(error);$('#canvas').innerHTML='<div class="webgl-error"><h2>当前无法显示三维空间</h2><p>请启用浏览器硬件加速或使用支持 WebGL 2 的浏览器。设备列表仍可使用。</p></div>';}
@@ -46,7 +46,7 @@ function renderDevices(){const visible=devices.filter(d=>(room==='all'||d.room==
  $('#device-list').innerHTML=visible.map(d=>`<div class="device-row ${selected===d.id?'selected':''}"><button class="device-open" data-device="${d.id}" aria-label="控制${d.name}"><span class="device-icon ${d.on?'on':''}">${icon(typeIcons[d.type])}</span><span class="device-text"><strong>${d.name}</strong><small>${status(d)}</small></span></button><button class="toggle ${d.on?'on':''}" data-toggle="${d.id}" role="switch" aria-checked="${d.on}" aria-label="${d.name}电源"><span></span></button></div>`).join('')||'<p class="empty">这个房间没有此类设备</p>';
  $('#device-count').textContent=visible.length+' 个';$('#on-count').innerHTML=devices.filter(d=>d.on).length+'<small>台</small>';$('#power').innerHTML=power(devices)+'<small>W</small>';$('#lit-count').textContent=devices.filter(d=>d.type==='light'&&d.on).length+' 盏灯已点亮';refreshIcons();
 }
-function commit(render=true){home?.update(devices);try{localStorage.setItem('habitat-devices-v2',JSON.stringify(devices));$('#saved').innerHTML=icon('check')+' 已保存';}catch{$('#saved').textContent='本次会话有效';}renderDevices();if(render&&selected)renderDetail();}
+function commit(render=true){home?.update(devices);try{localStorage.setItem('habitat-devices-v3',JSON.stringify(devices));$('#saved').innerHTML=icon('check')+' 已保存';}catch{$('#saved').textContent='本次会话有效';}renderDevices();if(render&&selected)renderDetail();}
 let toastTimer;function toast(text){$('#toast').textContent=text;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2600);}
 // 家具摆位单独落盘，拖动过程中不调用，避免每帧写 localStorage 并重建设备列表。
 function persistLayout(){try{localStorage.setItem('habitat-layout-v1',JSON.stringify(home.layoutState()));$('#saved').innerHTML=icon('check')+' 已保存';}catch{$('#saved').textContent='本次会话有效';}}
