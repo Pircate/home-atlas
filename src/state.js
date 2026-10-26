@@ -52,7 +52,7 @@ export function furnitureDefaults(){return [
   ['bed-a','卧室 A 床 1.8×1.5米','a',3.2176,2.2709,1,270],['wardrobe-a','卧室 A 一米衣柜','a',2.4976,3.6569,1,90],
   ['wardrobe-b','卧室 B 北墙整墙柜','b',1.7785,5.7151,1],['wardrobe-c','卧室 C 北墙衣柜','c',4.7649,5.7151,1],
   ['bike-cabinet','西墙洞洞板车架 211×220×37cm','storage',.12+HALF+BIKE_RACK.depth/2,5.3551-HALF-BIKE_RACK.length/2,1],
-  ['desk-gaming','电脑桌椅','storage',1.41,3.31,1],
+  ['desk-gaming','电脑桌椅','storage',1.27,3.31,1], // 向西让出 14 cm，避开东墙暖气与桌板、抽屉柜的交叠
   ['sofa','客厅沙发与边柜','living',9.13,7.14,1],['coffee','客厅茶几','living',8.05,7.10,1],
   ['armchair','客厅单人椅','living',8.10,8.56,1,25],['armchair-n','客厅圆壳椅','living',8.05,5.88,1],
   ['tv-unit','电视柜与绿植','living',6.39,7.20,1],['dining','独立岛台与双人吧椅','kitchen',7.95,3.93,1],

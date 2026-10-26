@@ -1,0 +1,116 @@
+{
+  "source": "https://open.realsee.com/ke/jd6oMOgvWNQMBvxY/74Lqjm4u4cq9b0AGQv5VTqTN7o2ZSr89/",
+  "workCode": "jd6oMOgvWNQMBvxY",
+  "units": "metres",
+  "basis": "全景照片人工核对房间与墙面；沿墙位置、宽高、厚度及离地高度均为照片估算，不是 VR 结构数据提供的实测值。offsetFromNorth 为暖气中心距房间北侧墙中线的距离，背面距东墙内面 0.025 米。",
+  "items": [
+    {
+      "id": "radiator-living",
+      "room": "living",
+      "name": "客厅暖气",
+      "wall": "east",
+      "offsetFromNorth": 2.1,
+      "width": 1.6,
+      "height": 0.6,
+      "depth": 0.1,
+      "bottom": 0.14,
+      "kind": "panel",
+      "evidence": {
+        "panoIndex": 0,
+        "face": "right",
+        "image": "https://vr-public.realsee-cdn.cn/release/auto3dhd/a228474c2e162938d09fe3b924f8363c/images/cube_2048/0/09c26b89d6675a19e854cd17d49a9052/0_r.avif",
+        "note": "东墙北段，原餐桌与冰箱之间；机位 5 left、8 back 可交叉核对。"
+      }
+    },
+    {
+      "id": "radiator-b",
+      "room": "b",
+      "name": "卧室 B 暖气",
+      "wall": "east",
+      "offsetFromNorth": 2.9,
+      "width": 1.0,
+      "height": 0.6,
+      "depth": 0.1,
+      "bottom": 0.14,
+      "kind": "panel",
+      "evidence": {
+        "panoIndex": 18,
+        "face": "back",
+        "image": "https://vr-public.realsee-cdn.cn/release/auto3dhd/a228474c2e162938d09fe3b924f8363c/images/cube_2048/18/eba751d24059ca9c6a2e0aa908d01fec/18_b.avif",
+        "note": "东墙南段，靠南窗窗帘；机位 17 left 也可见。"
+      }
+    },
+    {
+      "id": "radiator-c",
+      "room": "c",
+      "name": "卧室 C 暖气",
+      "wall": "east",
+      "offsetFromNorth": 2.85,
+      "width": 1.2,
+      "height": 0.6,
+      "depth": 0.1,
+      "bottom": 0.14,
+      "kind": "panel",
+      "evidence": {
+        "panoIndex": 10,
+        "face": "front",
+        "image": "https://vr-public.realsee-cdn.cn/release/auto3dhd/a228474c2e162938d09fe3b924f8363c/images/cube_2048/10/7311a1e228c425437062fe5bb89c8519/10_f.avif",
+        "note": "东墙南段，原 L 形书桌下，左下方可见散热板；部分被桌椅遮挡。"
+      }
+    },
+    {
+      "id": "radiator-a",
+      "room": "a",
+      "name": "卧室 A 暖气",
+      "wall": "east",
+      "offsetFromNorth": 0.64,
+      "width": 0.48,
+      "height": 0.95,
+      "depth": 0.1,
+      "bottom": 0.18,
+      "kind": "panel",
+      "evidence": {
+        "panoIndex": 16,
+        "face": "right",
+        "image": "https://vr-public.realsee-cdn.cn/release/auto3dhd/a228474c2e162938d09fe3b924f8363c/images/cube_2048/16/5ffaf801745d8c26b8245e8fc42a763c/16_r.avif",
+        "note": "东墙北段，北窗与房门之间，窄高型；机位 13 right、15 left 也可见。"
+      }
+    },
+    {
+      "id": "radiator-storage",
+      "room": "storage",
+      "name": "储物间暖气",
+      "wall": "east",
+      "offsetFromNorth": 0.55,
+      "width": 0.48,
+      "height": 0.6,
+      "depth": 0.1,
+      "bottom": 0.14,
+      "kind": "panel",
+      "evidence": {
+        "panoIndex": 14,
+        "face": "right",
+        "image": "https://vr-public.realsee-cdn.cn/release/auto3dhd/a228474c2e162938d09fe3b924f8363c/images/cube_2048/14/027cffbc8bf864d3d9f2cc318856e947/14_r.avif",
+        "note": "东墙北段，北窗旁、原桌后，部分被杂物遮挡；宽高按可见轮廓估算。"
+      }
+    },
+    {
+      "id": "radiator-bath",
+      "room": "bath",
+      "name": "卫生间毛巾暖气架",
+      "wall": "east",
+      "offsetFromNorth": 1.28,
+      "width": 0.5,
+      "height": 0.85,
+      "depth": 0.09,
+      "bottom": 0.85,
+      "kind": "towel",
+      "evidence": {
+        "panoIndex": 12,
+        "face": "back",
+        "image": "https://vr-public.realsee-cdn.cn/release/auto3dhd/a228474c2e162938d09fe3b924f8363c/images/cube_2048/12/465c9000b3c9883e1731e853170f4b7f/12_b.avif",
+        "note": "东墙南段，原马桶水箱上方、靠门一侧，为梯形毛巾散热器。"
+      }
+    }
+  ]
+}

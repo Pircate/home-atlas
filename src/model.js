@@ -5,6 +5,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {rooms,slabs,resolveMove,clampToLayout,LAYOUT_VERSION,isWallRemoved,BIKE_RACK} from './state.js';
 import {ROOMS,WALLS,OPENINGS,WALL_HEIGHT,WALL_THICKNESS} from './layout.js';
+import heating from '../vr/heating-items.json';
 
 export function createHome(container,initialDevices,initialLayout,{onSelect,onFurniture,onLayout}={}){
  const layout=new Map(initialLayout.map(f=>[f.id,f]));
@@ -160,6 +161,43 @@ const thresholdlessOpenings=new Set([
  // 实测墙线 39 段，位置与长度直接来自 VR 数据；其中被装修方案拆掉的（厨房南墙等）见 state.js 的
 // REMOVED_WALLS，这里统一跳过，门洞随墙一起消失。
 for(const [x1,z1,x2,z2] of WALLS)if(!isWallRemoved(x1,z1,x2,z2))wall(x1,z1,x2,z2);
+
+ // 暖气位置按原房源全景照片核对，尺寸与沿墙距离为估算，来源机位见 heating-items.json。
+ // 固定挂墙设施直接加入 home，不进入可拖动家具或模拟电器列表。
+ for(const r of heating.items){
+  const [x,z,w]=ROOMS.find(room=>room.id===r.room).extent;
+  const g=new T.Group();g.name=r.id;
+  // 本组局部 +z 为散热面，转向西侧室内；局部 x 沿墙向南。
+  g.position.set(x+w-WALL_THICKNESS/2-.025-r.depth/2,0,z+r.offsetFromNorth);
+  g.rotation.y=-Math.PI/2;home.add(g);
+  const enamel=mat('#f3f2eb',.4,.12),shadow=mat('#a9aaa3',.7),mid=r.bottom+r.height/2;
+  if(r.kind==='towel'){
+   for(const side of [-1,1])cylinder(g,side*(r.width/2-.02),mid,0,.019,.019,r.height,enamel);
+   for(let i=0;i<12;i++){
+    const y=r.bottom+.06+i*(r.height-.12)/11;
+    const rail=cylinder(g,0,y,.012,.014,.014,r.width-.04,enamel);rail.rotation.z=Math.PI/2;
+   }
+  }else{
+   box(g,0,mid,0,r.width,r.height,r.depth,enamel,.009);
+   // 薄板压筋与顶部散热格栅用实例绘制，避免每根压筋增加一次 draw call。
+   const count=Math.floor((r.width-.04)/.028);
+   const ribs=new T.InstancedMesh(new T.BoxGeometry(.010,r.height-.04,.009),enamel,count);
+   const slots=new T.InstancedMesh(new T.BoxGeometry(.013,.003,r.depth*.6),shadow,count);
+   const pose=new T.Matrix4();
+   for(let i=0;i<count;i++){
+    const along=-r.width/2+.025+(i+.5)*(r.width-.05)/count;
+    ribs.setMatrixAt(i,pose.makeTranslation(along,mid,r.depth/2+.004));
+    slots.setMatrixAt(i,pose.makeTranslation(along,r.bottom+r.height+.002,0));
+   }
+   ribs.castShadow=ribs.receiveShadow=true;slots.receiveShadow=true;g.add(ribs,slots);
+  }
+  // 墙托与侧面阀门，保持与墙内面之间的挂装间隙。
+  for(const side of [-1,1]){
+   for(const y of [r.bottom+.10,r.bottom+r.height-.10])box(g,side*r.width*.3,y,-r.depth/2-.012,.035,.04,.025,steel);
+   const valve=cylinder(g,side*(r.width/2+.025),r.bottom+.07,0,.013,.013,.07,steel);valve.rotation.z=Math.PI/2;
+   box(g,side*(r.width/2+.06),r.bottom+.07,.012,.035,.035,.04,enamel,.008);
+  }
+ }
 
  // 客厅地毯作为固定装饰，不计入沙发的移动边界。
  function rug(x,z,w,d,material){box(home,x,.04,z,w,.035,d,material,.04);}

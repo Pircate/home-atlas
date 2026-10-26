@@ -82,6 +82,8 @@ python3 scripts/render-plan.py     # → output/实测平面图.png，用于和 
 
 `vr/furniture-items.json` 保留原房源的四件扫描家具足迹作为参考。装修方案的床宽、朝向和厨房布局以本项目已确认方案为准，不直接套用原房源的家具足迹。家具、家电和材质为设计示意，不能用作施工图。
 
+暖气按同一房源的全景照片补入 6 处固定挂墙设施：客厅东墙北段、卧室 B 与 C 东墙南段、卧室 A 与储物间东墙北段，以及卫生间东墙南段的毛巾暖气架。卧室 C 的暖气在原书桌下，储物间的暖气被桌面和杂物部分遮挡。房间与墙面已由照片核对；沿墙位置、尺寸和离地高度为照片估算。`vr/heating-items.json` 保存每组暖气的估算参数、原图链接与全景机位，模型按房间东墙内面挂装；暖气不参与家具拖动和电器控制。储物间书桌默认向西让出 14 cm，避免桌板、抽屉柜与新增暖气交叠。
+
 房屋坐标更新后，旧家具摆位及旧设备位置不再套用，浏览器将显示新的默认布置。
 
 所有家电控制均为本地模拟，未连接真实设备。功率为模拟额定估算，冰箱温度为固定展示，音箱不播放音频。刷新后洗衣机不会自动恢复洗涤。
@@ -98,5 +100,6 @@ python3 scripts/render-plan.py     # → output/实测平面图.png，用于和 
 - `scripts/build-layout.py`：把 VR 抓到的户型 JSON 转成 `src/layout.js`。
 - `scripts/render-plan.py`：出 `output/实测平面图.png`，用来和 VR 图纸比对。
 - `vr/floorplan.json`：该房源 VR 的元信息（workCode、unionPlanCode）。
+- `vr/heating-items.json`：6 处暖气的照片依据及估算摆位、尺寸。
 
 参考 [Three.js 官方文档](https://threejs.org/docs/)。几何和地毯纹理由本地代码生成，地板使用随项目打包的 `src/assets/wood-floor.png`（依据用户实拍参考，由内置 imagegen 生成）；无远程模型及字体依赖。
