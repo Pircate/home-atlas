@@ -41,6 +41,8 @@ const blocked=(x,z)=>barriers.some(b=>within(b,x,z))&&!gates.some(g=>gated(g,x,z
 // 全屋外轮廓（墙中线包围盒）：存档坐标的兜底边界，比写死数字更耐得住重新实测。
 export const BOUNDS=WALLS.reduce((b,[x1,z1,x2,z2])=>({x0:Math.min(b.x0,x1,x2),x1:Math.max(b.x1,x1,x2),
   z0:Math.min(b.z0,z1,z2),z1:Math.max(b.z1,z1,z2)}),{x0:Infinity,x1:-Infinity,z0:Infinity,z1:-Infinity});
+// 用户给定的整组外尺寸，单位米；沿西墙的长边对应模型 z 轴。
+export const BIKE_RACK={length:2.11,height:2.20,depth:.37};
 // 家具分组：每组作为整体移动旋转，锚点是组内局部坐标的原点。
 // 卧室保留已确认布局，公共区域按效果图布置，均以实测墙内边界落位。
 // 实测家具足迹仅作为原房源参考，装修方案的床宽与朝向以已确认布局为准。
@@ -49,7 +51,7 @@ export function furnitureDefaults(){return [
   ['bed-b','卧室 B 大床 2×1.8米','b',1.25,8.1621,1,270],['bed-c','卧室 C 单人床 2×1.2米','c',4.1274,8.1068,1],
   ['bed-a','卧室 A 床 1.8×1.5米','a',3.2176,2.2709,1,270],['wardrobe-a','卧室 A 一米衣柜','a',2.4976,3.6569,1,90],
   ['wardrobe-b','卧室 B 北墙整墙柜','b',1.7785,5.7151,1],['wardrobe-c','卧室 C 北墙衣柜','c',4.7649,5.7151,1],
-  ['bike-cabinet','西墙自行车与展示架','storage',.40,4.08,1],
+  ['bike-cabinet','西墙洞洞板车架 211×220×37cm','storage',.12+HALF+BIKE_RACK.depth/2,5.3551-HALF-BIKE_RACK.length/2,1],
   ['desk-gaming','电脑桌椅','storage',1.41,3.31,1],
   ['sofa','客厅沙发与边柜','living',9.13,7.14,1],['coffee','客厅茶几','living',8.05,7.10,1],
   ['armchair','客厅单人椅','living',8.10,8.56,1,25],['armchair-n','客厅圆壳椅','living',8.05,5.88,1],

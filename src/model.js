@@ -3,7 +3,7 @@ import floorTextureUrl from './assets/wood-floor.png';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {rooms,slabs,resolveMove,clampToLayout,LAYOUT_VERSION,isWallRemoved} from './state.js';
+import {rooms,slabs,resolveMove,clampToLayout,LAYOUT_VERSION,isWallRemoved,BIKE_RACK} from './state.js';
 import {ROOMS,WALLS,OPENINGS,WALL_HEIGHT,WALL_THICKNESS} from './layout.js';
 
 export function createHome(container,initialDevices,initialLayout,{onSelect,onFurniture,onLayout}={}){
@@ -232,30 +232,80 @@ furnishing('hall-cabinet',g=>{
  cylinder(g,-.24,1.17,.02,.09,.078,.09,mat('#d9c9ae',.5));
  for(const [a,h] of [[-.4,1.5],[.2,1.8],[.9,1.3]]){const stick=cylinder(g,.24,1.22+h*.16,.06,.006,.008,h*.45,mat('#9a7752'));stick.rotation.z=a*.35;stick.rotation.x=a*.2;}
 });
- // 储物间：西墙开放式自行车架及展示层板，北窗下木色电脑桌，南侧留出开门空间。
+ // 储物间西墙：211×220×37 cm 古铜色洞洞板车架，上挂车、下放骑行台。
  furnishing('bike-cabinet',g=>{
-  const tyre=mat('#2b2724',.6),alloy=mat('#b08a55',.3,.62);
-  box(g,0,.05,0,.40,.10,2.20,walnut,.012);                                   // 落地的胡桃木底座
-  box(g,-.19,1.03,0,.03,1.98,2.20,walnut);                                   // 背板
-  // 展示层板：胡桃木搁板配黄铜托架，只放在车身两端，不穿过车架和车轮。
-  for(const z of [-.91,.91])for(const y of [.45,1.02,1.62]){
-   box(g,-.025,y,z,.35,.03,.32,wood,.006);
-   for(const s of [-1,1])box(g,-.16,y-.07,z+s*.11,.02,.12,.012,brass);
-   cylinder(g,-.03,y+.10,z,.065,.052,.17,cream);                             // 陶瓶
-   if(y>.6)cylinder(g,.07,y+.06,z,.045,.05,.10,mustard);
+  const {length,height,depth}=BIKE_RACK,base=.025,back=-depth/2,front=depth/2;
+  const rackBlack=mat('#202327',.48,.35),bronze=mat('#886448',.48,.55),tyre=mat('#171b1d',.85),rim=mat('#343b40',.38,.5),silver=mat('#a7afb0',.3,.75);
+  // 重复孔纹理避免为数千个小孔分别创建几何和 draw call。
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=64;
+  const ctx=canvas.getContext('2d'),gradient=ctx.createLinearGradient(0,0,64,64);
+  gradient.addColorStop(0,'#a6815e');gradient.addColorStop(1,'#7b5a40');ctx.fillStyle=gradient;ctx.fillRect(0,0,64,64);
+  ctx.beginPath();ctx.arc(32,32,8,0,Math.PI*2);ctx.fillStyle='#b89a77';ctx.fill();
+  ctx.beginPath();ctx.arc(32,31,6.5,0,Math.PI*2);ctx.fillStyle='#242321';ctx.fill();
+  const holes=new T.CanvasTexture(canvas);holes.wrapS=holes.wrapT=T.RepeatWrapping;holes.colorSpace=T.SRGBColorSpace;
+  holes.repeat.set((length/4-.008)/.025,(height-.10-.008)/2/.025);holes.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  const perforated=new T.MeshStandardMaterial({map:holes,roughness:.5,metalness:.45});
+  box(g,0,base+.04,0,depth,.08,length,rackBlack,.005);
+  box(g,back+.014,base+height/2,0,.028,height,length,rackBlack);
+  for(let col=0;col<4;col++)for(let row=0;row<2;row++){
+   const w=length/4-.008,h=(height-.10-.008)/2,z=-length/2+(col+.5)*length/4,y=base+.10+h/2+row*(h+.008);
+   box(g,back+.032,y,z,.012,h,w,bronze);
+   const face=new T.Mesh(new T.PlaneGeometry(w,h),perforated);face.rotation.y=Math.PI/2;face.position.set(back+.039,y,z);g.add(face);
   }
-  // 立挂的公路车：先在「轮轴为 y=0」的局部系里造平面剪影，再整体绕 X 立起来，
-  // 这样车头朝上、车身贴背板，和实拍里那辆车一致。
-  const bike=new T.Group();bike.position.set(0,.98,0);bike.rotation.x=-Math.PI/2;g.add(bike);
-  for(const z of [-.52,.52]){const wheel=new T.Mesh(new T.TorusGeometry(.335,.024,8,28),tyre);wheel.rotation.y=Math.PI/2;wheel.position.set(0,0,z);wheel.castShadow=true;bike.add(wheel);
-   const hub=cylinder(bike,0,0,z,.03,.03,.045,alloy);hub.rotation.z=Math.PI/2;}
-  const tube=(a,b,r)=>{const dir=new T.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]);const len=dir.length();
-   const m=new T.Mesh(new T.CylinderGeometry(r,r,len,8),mat('#f0efe9',.4,.25));m.position.set((a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2);
-   m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),dir.normalize());m.castShadow=true;bike.add(m);};
-  const bb=[0,-.06,-.05],seat=[0,.40,-.26],head=[0,.24,.40];
-  tube([0,0,-.52],bb,.021);tube(bb,[0,0,.52],.021);tube(bb,seat,.018);tube(seat,[0,0,-.52],.015);tube(head,[0,0,.52],.018);tube(seat,head,.017);
-  box(bike,0,.45,-.29,.05,.03,.26,tyre,.012);                                        // 坐垫
-  const bar=cylinder(bike,0,.30,.42,.016,.016,.34,tyre);bar.rotation.z=Math.PI/2;    // 车把（横出车身平面）
+  for(const z of [-length/2+.012,length/2-.012])box(g,back+.022,base+height/2,z,.044,height,.024,rackBlack);
+  // 车头朝北；整组展示件沿墙镜像，配件留在车尾一端，不与前轮重叠。
+  const display=new T.Group();display.scale.z=-1;g.add(display);
+  // 车在 y/z 平面内，两轮沿墙横向排列，车把收在整组 37 cm 深度内。
+  function tube(parent,a,b,r,m){const direction=new T.Vector3().subVectors(new T.Vector3(...b),new T.Vector3(...a));
+   const mesh=new T.Mesh(new T.CylinderGeometry(r,r,direction.length(),8),m);mesh.position.copy(new T.Vector3(...a).add(new T.Vector3(...b)).multiplyScalar(.5));
+   mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction.normalize());mesh.castShadow=true;parent.add(mesh);return mesh;}
+  function hoop(parent,x,y,z,r,t,m,segments=48){const mesh=new T.Mesh(new T.TorusGeometry(r,t,8,segments),m);mesh.rotation.y=Math.PI/2;mesh.position.set(x,y,z);mesh.castShadow=true;parent.add(mesh);return mesh;}
+  function roadBike(y,color,trainer=false){
+   const bike=new T.Group();bike.position.set(.025,y,.14);display.add(bike);const paint=mat(color,.3,.3);
+   const rear=[0,0,-.52],axle=[0,0,.52],bb=[0,-.045,-.10],seat=[0,.43,-.26],head=[0,.40,.40];
+   for(const z of trainer?[.52]:[-.52,.52]){
+    hoop(bike,0,0,z,.326,.024,tyre);hoop(bike,0,0,z,.299,.017,rim);
+    if(trainer)hoop(bike,0,0,z,.316,.005,mat('#bd9259',.9));
+    const hub=cylinder(bike,0,0,z,.027,.027,.065,silver);hub.rotation.z=Math.PI/2;
+    for(let i=0;i<20;i++){const a=i*Math.PI/10;tube(bike,[.012,0,z],[.012,Math.sin(a)*.285,z+Math.cos(a)*.285],.0017,silver);}
+    hoop(bike,.04,0,z,.10,.008,silver,24);
+   }
+   for(const [a,b,r] of [[rear,bb,.015],[rear,seat,.013],[bb,seat,.023],[seat,head,.024],[bb,[0,.30,.39],.027],[head,axle,.021]])tube(bike,a,b,r,paint);
+   tube(bike,seat,[0,.53,-.29],.014,rackBlack);box(bike,0,.55,-.30,.13,.035,.23,tyre,.012);
+   tube(bike,head,[0,.50,.43],.018,rackBlack);tube(bike,[0,.50,.43],[0,.50,.54],.015,rackBlack);
+   tube(bike,[-.14,.50,.54],[.14,.50,.54],.015,tyre);
+   for(const x of [-.14,.14]){
+    const curve=new T.CatmullRomCurve3([[x,.50,.54],[x,.48,.63],[x,.39,.67],[x,.32,.63],[x,.32,.56]].map(p=>new T.Vector3(...p)));
+    const drop=new T.Mesh(new T.TubeGeometry(curve,12,.014,6,false),tyre);drop.castShadow=true;bike.add(drop);
+    box(bike,x,.43,.625,.024,.10,.035,rackBlack,.006);
+   }
+   hoop(bike,.044,bb[1],bb[2],.10,.012,silver,28);hoop(bike,.053,bb[1],bb[2],.078,.009,rackBlack,24);
+   tube(bike,[.065,bb[1],bb[2]],[.065,-.13,.04],.012,rackBlack);box(bike,.09,-.13,.04,.08,.018,.045,rackBlack);
+   tube(bike,[-.035,bb[1],bb[2]],[-.035,.04,-.24],.012,rackBlack);
+   for(const offset of [-.065,.065])tube(bike,[.057,bb[1]+offset,bb[2]],[.057,offset*.45,-.52],.003,silver);
+   tube(bike,[.035,.09,-.10],[.035,.23,-.16],.018,mat('#d6d6cb',.6));
+   if(trainer){
+    const flywheel=cylinder(bike,0,-.04,-.52,.20,.20,.10,rackBlack);flywheel.rotation.z=Math.PI/2;
+    for(const x of [-.12,.12]){
+     tube(bike,[0,0,-.52],[x,-.328,-.72],.023,rackBlack);tube(bike,[0,0,-.52],[x,-.328,-.29],.023,rackBlack);
+     tube(bike,[x,-.328,-.72],[x,-.328,-.29],.022,rackBlack);
+    }
+    box(bike,0,-.325,.52,.24,.05,.26,rackBlack,.01);
+   }
+  }
+  roadBike(1.60,'#20b9bb');roadBike(.455,'#75874b',true);
+  // 上车由车架托臂与轮托承重，配件集中在北端窄列。
+  for(const z of [-.20,.44]){box(display,-.052,2.00,z,.22,.035,.065,rackBlack,.008);box(display,.05,2.025,z,.04,.06,.065,rackBlack,.006);}
+  for(const z of [-.38,.66])box(display,.025,1.25,z,.17,.035,.13,rackBlack,.008);
+  for(const [y,color] of [[1.73,'#e0e1d7'],[1.41,'#282c30']]){
+   ball(display,-.06,y,-.89,.12,mat(color),[.72,1,.78]);
+   for(const dz of [-.045,0,.045])box(display,.025,y+.025,-.89+dz,.012,.12,.014,rackBlack,.005);
+   tube(display,[-.06,y-.07,-.98],[-.035,y-.18,-.89],.006,rackBlack);tube(display,[-.035,y-.18,-.89],[-.06,y-.07,-.80],.006,rackBlack);
+  }
+  for(const y of [1.13,.98]){box(display,-.09,y,-.89,.13,.027,.18,rackBlack,.005);box(display,-.015,y+.025,-.89,.016,.045,.15,mat(y>1?'#d6a249':'#b1d4d5',.25),.008);}
+  for(const z of [-.94,-.85]){box(display,-.075,.70,z,.07,.19,.065,mat('#2585a5'),.02);tube(display,[back+.04,.83,z],[-.08,.83,z],.007,rackBlack);}
+  // front 保持为整组最大深度边界，底座前沿与侧边框共同界定外尺寸。
+  box(g,front-.006,base+.04,0,.012,.08,length,rackBlack);
  });
  // 电竞桌椅贴着北墙放：显示器收进桌板内侧，否则桌一贴墙、屏就扎进墙里。
  // 造型按中古书桌处理——柚木薄板桌面、锥形腿、一侧抽屉柜；椅子换成胡桃木框加奶油色软垫。
@@ -593,5 +643,5 @@ furnishing('armchair-n',g=>{
   applyLayout(list){for(const spec of list){const f=furniture.find(x=>x.id===spec.id);if(!f)continue;f.group.position.set(spec.x,0,spec.z);f.group.rotation.y=spec.rot*Math.PI/180;}syncFurniture();onLayout?.();},
   // 全部家具的完整摆位，条数固定，无需比对默认值。
   layoutState(){const items={};for(const f of furniture)items[f.id]={x:+f.group.position.x.toFixed(3),z:+f.group.position.z.toFixed(3),rot:+((f.group.rotation.y*180/Math.PI%360+360)%360).toFixed(1)};return {version:LAYOUT_VERSION,items};},
-  top(){tween={position:new T.Vector3(4.88,22,5.53),target:new T.Vector3(4.88,0,5.52)};},zoom(factor){tween=null;const offset=camera.position.clone().sub(controls.target);offset.setLength(T.MathUtils.clamp(offset.length()*factor,4,30));camera.position.copy(controls.target).add(offset);},stats(){return {drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,walls:walls.length,hiddenWalls:walls.filter(w=>w.target<1).length};},dispose(){observer.disconnect();renderer.setAnimationLoop(null);controls.dispose();floorMap.dispose();rugStripe.map.dispose();environmentMap.dispose();scene.traverse(o=>{o.geometry?.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();}};
+  top(){tween={position:new T.Vector3(4.88,22,5.53),target:new T.Vector3(4.88,0,5.52)};},zoom(factor){tween=null;const offset=camera.position.clone().sub(controls.target);offset.setLength(T.MathUtils.clamp(offset.length()*factor,4,30));camera.position.copy(controls.target).add(offset);},stats(){return {drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,walls:walls.length,hiddenWalls:walls.filter(w=>w.target<1).length};},dispose(){observer.disconnect();renderer.setAnimationLoop(null);controls.dispose();floorMap.dispose();rugStripe.map.dispose();environmentMap.dispose();scene.traverse(o=>{o.geometry?.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.map?.isCanvasTexture)m.map.dispose();m.dispose();});});renderer.dispose();renderer.domElement.remove();}};
 }

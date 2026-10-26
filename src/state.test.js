@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDevices,applyScene,power,restore,slabs,furnitureDefaults,extentOf,clampToLayout,resolveMove,restoreLayout,LAYOUT_VERSION,BOUNDS,OPENINGS,REMOVED_WALLS,isWallRemoved} from './state.js';
+import {createDevices,applyScene,power,restore,slabs,furnitureDefaults,extentOf,clampToLayout,resolveMove,restoreLayout,LAYOUT_VERSION,BOUNDS,OPENINGS,REMOVED_WALLS,isWallRemoved,BIKE_RACK} from './state.js';
 import {ROOMS,WALLS,WALL_THICKNESS} from './layout.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`期望 ${a} 接近 ${b}`);
 test('每台设备标识唯一，客厅与岛台灯光可以独立控制',()=>{const devices=createDevices();assert.equal(new Set(devices.map(d=>d.id)).size,21);const lamps=devices.filter(d=>d.room==='living'&&d.type==='light');assert.equal(lamps.length,2);lamps[0].on=false;assert(lamps[1].on);assert(devices.find(d=>d.id==='dining-light'&&d.room==='kitchen').on);});
@@ -10,6 +10,16 @@ test('状态恢复限制参数和移动设备坐标，固定设备使用新模�
 test('未存档的设备保留默认坐标',()=>{const next=restore(createDevices(),[{id:'fridge',on:false}]);assert.equal(next.find(d=>d.id==='fridge').x,9.25);assert.equal(next.find(d=>d.id==='tv').x,6.37);});
 test('模拟灯光功率随亮度变化',()=>{assert.equal(power([{on:true,type:'light',watts:20,brightness:50},{on:false,watts:900}]),10);});
 test('家具标识唯一，且与设备标识不冲突',()=>{const furniture=furnitureDefaults(),ids=furniture.map(f=>f.id);assert.equal(new Set(ids).size,furniture.length);const deviceIds=new Set(createDevices().map(d=>d.id));assert(ids.every(id=>!deviceIds.has(id)));});
+test('211×220×37 cm 洞洞板车架贴储物间西、南墙，整组不穿墙且避开书桌和门扇',()=>{
+ const rack=furnitureDefaults().find(f=>f.id==='bike-cabinet'),desk=furnitureDefaults().find(f=>f.id==='desk-gaming');
+ const [west,north,,depth]=ROOMS.find(r=>r.id==='storage').extent;
+ close(rack.x-BIKE_RACK.depth/2,west+WALL_THICKNESS/2);
+ close(rack.z+BIKE_RACK.length/2,north+depth-WALL_THICKNESS/2);
+ assert(clampToLayout(rack.x,rack.z,{w:BIKE_RACK.depth,d:BIKE_RACK.length}),'完整货架足迹必须在房内');
+ assert(rack.x+BIKE_RACK.depth/2<desk.x-1.36/2,'货架与桌板留有间隙');
+ const door=OPENINGS.find(o=>o.id==='u-p4971IKp8i70r2');
+ assert(rack.x+BIKE_RACK.depth/2<door.cx-door.len,'货架位于门扇开启范围以西');
+});
 test('旋转后的包围盒宽深互换',()=>{const e=extentOf({w:1.6,d:2.03,rot:90});close(e.w,2.03);close(e.d,1.6);const f=extentOf({w:1.6,d:2.03,rot:0});close(f.w,1.6);close(f.d,2.03);});
 test('地面并集在门洞处连通，家具可以跨房间搬动',()=>{const onSlab=(x,z)=>slabs.some(s=>x>=s.x&&x<=s.x+s.w&&z>=s.z&&z<=s.z+s.d);
  let passable=0;
